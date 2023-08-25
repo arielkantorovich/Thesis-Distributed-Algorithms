@@ -50,21 +50,21 @@ class QNetwork(nn.Module):
 # %% Setting Functions
 def calculate_scores(Q, B, x_optimal, N_exp, N, L):
     """
-    :param Q: size (L, N, N)
-    :param B: size (L, N, 1)
-    :param x_optimal: size (Nexp, N)
+    :param Q: size (L,N, N, N)
+    :param B: size (L, N, N, 1)
+    :param x_optimal: size (L, N, N, 1)
     :param N_exp: scalar
     :param N: scalar
     :param L: scalar
-    :return: scores vector by size N_exp
+    :return: scores vector by size L
     """
     scores = np.zeros((L, ))
     for i in range(L):
-        result_pass = 0
-        for j in range(N):
-            result_pass += 0.5 * x_optimal[i, j].T @ Q[i] @ x_optimal[i, j] + x_optimal[i, j].T @ B[i]
-        scores[i] = result_pass
+        x = x_optimal[i]
+        x_transposed = np.transpose(x, (0, 2, 1))
+        scores[i] = np.sum(0.5 * x_transposed @ Q[i] @ x + x_transposed @ B[i])
     return scores
+
 
 def compute_gradient(Qn, Bn, x):
     """
@@ -93,8 +93,8 @@ def multi_agent_gradient_descent(N, T, learning_rate,
     """
     # Init learning rate
     lr2 = 0.001 * np.ones((T,))  # mean
-    lr2[19000:] = 0.0001
-    lr1 = 0.001 * np.ones((T, )) # mean
+    lr2[15000:] = 0.0001
+    lr1 = 0.001 * np.ones((T, )) # NN
     lr1[9000:] = 0.0001
     Qn_Randomize = np.random.rand(L, N, N, N)
     # Initialize x_agents
@@ -108,6 +108,9 @@ def multi_agent_gradient_descent(N, T, learning_rate,
     cost_record_mean = np.zeros((T, L))
     cost_record_NN = np.zeros((T, L))
     cost_record_Randomize = np.zeros((T, L))
+    # Init B and Q for calculate L trials cost
+    B = np.repeat(B[:, np.newaxis, :, :], N, axis=1)
+    Q = np.repeat(Q[:, np.newaxis, :, :], N, axis=1)
     # loop over time
     for t in range(T):
         # Compute gradients in parallel
@@ -143,7 +146,7 @@ N = 5 # Number of players
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 recordFlag = True # track the progress of cost and agent
 T = 35000 # Number of iteration
-learning_rate = 0.05 * np.reciprocal(np.power(range(1, T + 1), 0.7))
+learning_rate = 0.04 * np.reciprocal(np.power(range(1, T + 1), 0.7))
 Bn = np.ones((L, N, N, 1))
 B = np.ones((L, N, 1))
 Border_projection = 35
