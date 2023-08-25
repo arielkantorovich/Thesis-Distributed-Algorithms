@@ -58,11 +58,13 @@ def calculate_scores(Q, B, x_optimal, N_exp, N, L):
     :param L: scalar
     :return: scores vector by size N_exp
     """
-    result_pass = 0
-    for i in range(N):
-        result_pass += 0.5 * x_optimal[i].T @ Q @ x_optimal[i] + x_optimal[i].T @ B
-    result_pass /= N
-    return result_pass
+    scores = np.zeros((L, ))
+    for i in range(L):
+        result_pass = 0
+        for j in range(N):
+            result_pass += 0.5 * x_optimal[i, j].T @ Q[i] @ x_optimal[i, j] + x_optimal[i, j].T @ B[i]
+        scores[i] = result_pass
+    return scores
 
 def compute_gradient(Qn, Bn, x):
     """
@@ -94,18 +96,18 @@ def multi_agent_gradient_descent(N, T, learning_rate,
     lr2[19000:] = 0.0001
     lr1 = 0.001 * np.ones((T, )) # mean
     lr1[9000:] = 0.0001
-    Qn_Randomize = np.random.rand(N, N, N)
+    Qn_Randomize = np.random.rand(L, N, N, N)
     # Initialize x_agents
-    x_agents_mean = 0.01 * np.ones((N, N, 1))
-    x_agents_NN = 0.01 * np.ones((N, N, 1))
-    x_agents_Randomiz = 0.01 * np.ones((N, N, 1))
+    x_agents_mean = 0.01 * np.ones((L, N, N, 1))
+    x_agents_NN = 0.01 * np.ones((L, N, N, 1))
+    x_agents_Randomiz = 0.01 * np.ones((L, N, N, 1))
     # Initialize x_agents and cost to track
-    x_record_mean = np.zeros((T, N, N, 1))
-    x_record_NN = np.zeros((T, N, N, 1))
-    x_record_Randomize = np.zeros((T, N, N, 1))
-    cost_record_mean = np.zeros((T, ))
-    cost_record_NN = np.zeros((T,))
-    cost_record_Randomize = np.zeros((T,))
+    x_record_mean = np.zeros((T, L, N, N, 1))
+    x_record_NN = np.zeros((T, L, N, N, 1))
+    x_record_Randomize = np.zeros((T, L, N, N, 1))
+    cost_record_mean = np.zeros((T, L))
+    cost_record_NN = np.zeros((T, L))
+    cost_record_Randomize = np.zeros((T, L))
     # loop over time
     for t in range(T):
         # Compute gradients in parallel
@@ -127,50 +129,54 @@ def multi_agent_gradient_descent(N, T, learning_rate,
             cost_record_mean[t] = calculate_scores(Q, B, x_agents_mean, N, N, L)
             cost_record_NN[t] = calculate_scores(Q, B, x_agents_NN, N, N, L)
             cost_record_Randomize[t] = calculate_scores(Q, B, x_agents_Randomiz, N, N, L)
+    # Finsh calculate mean results of L trials:
+    cost_record_mean = np.mean(cost_record_mean, axis=1)
+    cost_record_NN = np.mean(cost_record_NN, axis=1)
+    cost_record_Randomize = np.mean(cost_record_Randomize, axis=1)
     return x_agents_mean, x_agents_NN, x_agents_Randomiz, x_record_mean, x_record_NN, x_record_Randomize, cost_record_mean, cost_record_NN, cost_record_Randomize
 
 
 # %% Parameters
 L = 100 # samples of Q
-input_size = 5
+input_size = 3
 N = 5 # Number of players
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 recordFlag = True # track the progress of cost and agent
 T = 35000 # Number of iteration
 learning_rate = 0.05 * np.reciprocal(np.power(range(1, T + 1), 0.7))
-Bn = np.ones((N, N, 1))
-B = np.ones((N, 1))
-sample = 90 # sample from test to check
+Bn = np.ones((L, N, N, 1))
+B = np.ones((L, N, 1))
 Border_projection = 35
 # %% Main loop
 # Step 1: mean of Q_train this will be new Qn_mean
-file_path_Q = os.path.join("Numpy_array_save", "train_data_set(Xsize5)", "Q.npy")
+file_path_Q = os.path.join("Numpy_array_save", "train_data_set(Xsize3)", "Q.npy")
 Q_train = np.load(file_path_Q)
 Qn_mean = np.mean(Q_train, axis=0)
 Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(N, axis=0)
+Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(L, axis=0)
 
 # Step 2: upload test set ang generate Qn_NN using NN
-file_path_x = os.path.join("Numpy_array_save", "test_data_set(Xsize5)", "x_test.npy")
-file_path_y = os.path.join("Numpy_array_save", "test_data_set(Xsize5)", "y_test.npy")
-file_path_Q = os.path.join("Numpy_array_save", "test_data_set(Xsize5)", "Q.npy")
+file_path_x = os.path.join("Numpy_array_save", "test_data_set(X size 3)", "x_test.npy")
+file_path_y = os.path.join("Numpy_array_save", "test_data_set(X size 3)", "y_test.npy")
+file_path_Q = os.path.join("Numpy_array_save", "test_data_set(X size 3)", "Q.npy")
 X_test = np.load(file_path_x)
 Y_test = np.load(file_path_y)
 Q_test = np.load(file_path_Q)
 
-file_path_weights = os.path.join("trains_record", "train_2000epochs_SGD(X=5)", "Q_Net.pth")
+file_path_weights = os.path.join("trains_record", "train_2000epochs_SGD(X=3)", "Q_Net.pth")
 model = QNetwork(input_size, output_size)  # Initialize the model with the same architecture
 model.load_state_dict(torch.load(file_path_weights))
 model.eval()  # Set the model to evaluation mode
 
 with torch.no_grad():
     # Sample example from test and squezze
-    X_sample = torch.tensor(X_test[sample*N:(sample + 1)*N], dtype=torch.float32)
+    X_sample = torch.tensor(X_test, dtype=torch.float32)
     X_sample = X_sample.squeeze(dim=-1)
     outputs = model(X_sample)
     predicted_values = outputs.numpy()
 
-Qn_NN = predicted_values.reshape(-1, N, N)
-Q = Q_test[sample] # Sample Q from test set
+Qn_NN = predicted_values.reshape(L, N, N, N)
+Q = Q_test
 
 # Step 3: Run optimization on two games parallel
 x_agents_mean, x_agents_NN, x_agents_Randomiz, x_record_mean, x_record_NN, x_record_Randomize, cost_record_mean, cost_record_NN, cost_record_Randomize = multi_agent_gradient_descent(N, T, learning_rate,
