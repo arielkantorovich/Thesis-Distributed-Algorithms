@@ -6,6 +6,30 @@ Created on : ------
 """
 import numpy as np
 
+def generate_Q_oneRank(N, L, mu=0, std=1):
+    """
+    :param N: number of players in game (int)
+    :param L: number of trials (int)
+    :param mu: mean for gaussian noise (int)
+    :param std: standard division for gaussian noise (int)
+    :return: X_train size (NL, N, 1)
+             Y_train size (NL, N^2, 1)
+             Q_save size (L, N, N)
+    """
+    # Generate Q_save size (L, N, N)
+    u = np.random.rand(L, N, 1)
+    u_transposed = u.transpose((0, 2, 1))
+    Q_save = np.matmul(u, u_transposed)
+    # Expand u to N players congestion game
+    u = np.repeat(u, N, axis=0)
+    u_transposed = u.transpose((0, 2, 1))
+    Q = np.matmul(u, u_transposed)
+    noise = std * np.random.randn(L*N, N, 1) + mu
+    u_hat = u + noise
+    X_train = u_hat
+    Y_train = Q.reshape(L*N, N**2, 1)
+    return X_train, Y_train, Q_save
+
 
 def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True):
     """
@@ -42,7 +66,14 @@ def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True):
     points_temp = points.reshape(L*N, 2)
     mean_dist = np.mean(distances, axis=2)
     mean_dist = mean_dist.reshape(L*N, 1)
-    X_train = np.concatenate((points_temp, mean_dist), axis=1)
+    # Generate M neighbors that close
+    M = 2
+    sorted_rows = np.sort(distances, axis=-1)
+    second_smallest_distances = sorted_rows[:, :, 0:(M+1)]
+    small_dist = second_smallest_distances.reshape(N * L, M+1)
+    # Finally build X train
+    # X_train = small_dist
+    X_train = np.concatenate((points_temp, mean_dist, small_dist), axis=1)
     Q_new = np.repeat(Q, N, axis=0)
     Y_train = Q_new.reshape(L*N, N**2, 1)
     # X_train = Y_train # Option learn Identity matrix
@@ -54,9 +85,10 @@ def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True):
 alpha = 4.0# Hyperparam for exp matrix Q
 beta = 1 # Hyperparam for matrix B
 N = 5 # Number of players
-L = 50 # trials for Q and B
-Q, B, X_train, Y_train = generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True)
-
+L = 100 # trials for Q and B
+X_train, Y_train, Q = generate_Q_oneRank(N, L, mu=0, std=1)
+# Q, B, X_train, Y_train = generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True)
+#
 # Save arrays
 np.save("Numpy_array_save/Q.npy", Q)
 np.save("Numpy_array_save/x_train.npy", X_train)

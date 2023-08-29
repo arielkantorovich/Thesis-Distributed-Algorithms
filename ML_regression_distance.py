@@ -24,7 +24,7 @@ class QNetwork(nn.Module):
         self.fc0 = nn.Linear(input_size, 512)
         self.bn0 = nn.BatchNorm1d(512)
         self.fc1 = nn.Linear(512, 256)
-        self.bn1 = self.bn1 = nn.BatchNorm1d(256)
+        self.bn1 = nn.BatchNorm1d(256)
         self.fc2 = nn.Linear(256, 128)
         self.bn2 = nn.BatchNorm1d(128)
         self.fc3 = nn.Linear(128, 64)
@@ -54,8 +54,8 @@ class QNetwork(nn.Module):
 
 # %% Read data and prepare to train
 batch_size = 256
-file_path_x = os.path.join("Numpy_array_save", "train_data_set(Xsize5)", "x_train.npy")
-file_path_y = os.path.join("Numpy_array_save", "train_data_set(Xsize5)", "y_train.npy")
+file_path_x = os.path.join("Numpy_array_save", "train_OneRank", "x_train.npy")
+file_path_y = os.path.join("Numpy_array_save", "train_OneRank", "y_train.npy")
 X_train = np.load(file_path_x)
 Y_train = np.load(file_path_y)
 # Convert data to PyTorch tensors
@@ -64,6 +64,7 @@ Y_train = torch.tensor(Y_train, dtype=torch.float32)
 
 # Split data into training and validation sets
 X_train, X_val, Y_train, Y_val = train_test_split(X_train, Y_train, test_size=0.2, random_state=42)
+
 
 # Create DataLoader for training and validation sets
 train_dataset = TensorDataset(X_train, Y_train)
@@ -74,15 +75,15 @@ val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 # %% Create the model, loss function, and optimizer:
 input_size = 5  # Size of each input sample
 N = 5 # Number of players
-lr_init = 0.1
+lr_init = 0.01
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 model = QNetwork(input_size, output_size)
 criterion = nn.MSELoss()  # Mean squared error loss
-optimizer = optim.SGD(model.parameters(), lr=lr_init, momentum=0.9)  # Adam optimizer
-scheduler = StepLR(optimizer, step_size=1200, gamma=0.5)
+optimizer = optim.SGD(model.parameters(), lr=lr_init, momentum=0.9)
+scheduler = StepLR(optimizer, step_size=500, gamma=0.5)
 
 # %% Training loop:
-num_epochs = 2000
+num_epochs = 1000
 train_list = []
 valid_list = []
 for epoch in range(num_epochs):
