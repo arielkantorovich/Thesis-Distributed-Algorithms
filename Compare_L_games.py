@@ -92,9 +92,9 @@ def multi_agent_gradient_descent(N, T, learning_rate,
              cost_record size (T, N_expr)
     """
     # Init learning rate
-    lr2 = 0.001 * np.ones((T,))  # NN
-    lr2[6000:] = 0.0001
-    lr1 = 0.001 * np.ones((T, )) # Mean
+    lr2 = 0.00001 * np.ones((T,))  # NN
+    lr2[30000:] = 0.000001
+    lr1 = 0.0001 * np.ones((T, )) # Mean
     lr1[6000:] = 0.0001
     Qn_Randomize = np.random.rand(L, N, N, N)
     # Initialize x_agents
@@ -129,8 +129,8 @@ def multi_agent_gradient_descent(N, T, learning_rate,
         x_agents_NN = np.minimum(np.maximum(x_agents_NN, -Border), Border)
         x_agents_Randomiz = np.minimum(np.maximum(x_agents_Randomiz, -Border), Border)
         if recordFlag:
-            record_gradient_NN[t] = gradients_NN
-            record_gradient_mean[t] = gradients_means
+            # record_gradient_NN[t] = gradients_NN
+            # record_gradient_mean[t] = gradients_means
             x_record_mean[t] = x_agents_mean
             x_record_NN[t] = x_agents_NN
             x_record_Randomize[t] = x_agents_Randomiz
@@ -146,32 +146,32 @@ def multi_agent_gradient_descent(N, T, learning_rate,
 
 # %% Parameters
 L = 100 # samples of Q
-input_size = 5
-N = 5 # Number of players
+N = 6 # Number of players
+input_size = N
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 recordFlag = True # track the progress of cost and agent
-T = 30000 # Number of iteration
-learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.7))
+T = 50000 # Number of iteration
+learning_rate = 0.005 * np.reciprocal(np.power(range(1, T + 1), 0.7))
 Bn = np.ones((L, N, N, 1))
 B = np.ones((L, N, 1))
-Border_projection = 35
+Border_projection = 70
 # %% Main loop
 # Step 1: mean of Q_train this will be new Qn_mean
-file_path_Q = os.path.join("Numpy_array_save", "train_OneRank", "Q.npy")
+file_path_Q = os.path.join("Numpy_array_save", "train_OneRank_N=6_d=2", "Q.npy")
 Q_train = np.load(file_path_Q)
 Qn_mean = np.mean(Q_train, axis=0)
 Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(N, axis=0)
 Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(L, axis=0)
 
 # Step 2: upload test set ang generate Qn_NN using NN
-file_path_x = os.path.join("Numpy_array_save", "test_OneRank", "x_test.npy")
-file_path_y = os.path.join("Numpy_array_save", "test_OneRank", "y_test.npy")
-file_path_Q = os.path.join("Numpy_array_save", "test_OneRank", "Q.npy")
+file_path_x = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "x_test.npy")
+file_path_y = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "y_test.npy")
+file_path_Q = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "Q.npy")
 X_test = np.load(file_path_x)
 Y_test = np.load(file_path_y)
 Q_test = np.load(file_path_Q)
 
-file_path_weights = os.path.join("trains_record", "SGD_withMomentum_500Epochs(One_rank)", "Q_Net.pth")
+file_path_weights = os.path.join("trains_record", "SGD_500epochs(d=2)", "Q_Net.pth")
 model = QNetwork(input_size, output_size)  # Initialize the model with the same architecture
 model.load_state_dict(torch.load(file_path_weights))
 model.eval()  # Set the model to evaluation mode

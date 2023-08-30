@@ -47,17 +47,17 @@ class QNetwork(nn.Module):
                 init.constant_(m.bias, 0)
 
 # %% Read data and prepare to test
-file_path_x = os.path.join("Numpy_array_save", "test_OneRank", "x_test.npy")
-file_path_y = os.path.join("Numpy_array_save", "test_OneRank", "y_test.npy")
-file_path_Q = os.path.join("Numpy_array_save", "test_OneRank", "Q.npy")
+file_path_x = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "x_test.npy")
+file_path_y = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "y_test.npy")
+file_path_Q = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "Q.npy")
 X_test = np.load(file_path_x)
 Y_test = np.load(file_path_y)
 Q = np.load(file_path_Q)
 
 # %% Load the trained model
-file_path_weights = os.path.join("trains_record", "SGD_withMomentum_1000Epochs(One_rank)", "Q_Net.pth")
-input_size = 5
-N = 5 # Number of players
+file_path_weights = os.path.join("trains_record", "SGD_500epochs(d=2)", "Q_Net.pth")
+N = 6 # Number of players
+input_size = N
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 model = QNetwork(input_size, output_size)  # Initialize the model with the same architecture
 model.load_state_dict(torch.load(file_path_weights))

@@ -6,6 +6,34 @@ Created on : ------
 """
 import numpy as np
 
+def generate_Q_d_oneRank(N, L, mu=0, std=1, d=3):
+    """
+    :param d: number of vector one rank (int)
+    :param N: number of players in game (int)
+    :param d: number of vector one rank (int)
+    :param L: number of trials (int)
+    :param mu: mean for gaussian noise (int)
+    :param std: standard division for gaussian noise (int)
+    :return: X_train size (NL, N, 1)
+             Y_train size (NL, N^2, 1)
+             Q_save size (L, N, N)
+    """
+    # Generate Q_save size (L, N, N)
+    u = np.random.rand(L, d, N, 1)
+    u_transposed = u.transpose((0, 1, 3, 2))
+    Q_save = np.matmul(u, u_transposed)
+    Q_save = np.sum(Q_save, axis=1) # sum on d
+    # Expand u to N players congestion game take care onle d vector we see
+    repeated_u = np.repeat(u, N // d, axis=1)
+    u = repeated_u.reshape(L * N, N, 1)
+    u_transposed = u.transpose((0, 2, 1))
+    Q = np.matmul(u, u_transposed)
+    noise = std * np.random.randn(L*N, N, 1) + mu
+    u_hat = u + noise
+    X_train = u_hat
+    Y_train = Q.reshape(L*N, N**2, 1)
+    return X_train, Y_train, Q_save
+
 def generate_Q_oneRank(N, L, mu=0, std=1):
     """
     :param N: number of players in game (int)
@@ -84,14 +112,18 @@ def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True):
 # Initialize Parameters:
 alpha = 4.0# Hyperparam for exp matrix Q
 beta = 1 # Hyperparam for matrix B
-N = 5 # Number of players
+N = 6 # Number of players
 L = 100 # trials for Q and B
-X_train, Y_train, Q = generate_Q_oneRank(N, L, mu=0, std=1)
+d = 2
+mu = 0
+std = 1
+
+X_train, Y_train, Q = generate_Q_d_oneRank(N, L, mu, std, d)
 # Q, B, X_train, Y_train = generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True)
 #
 # Save arrays
 np.save("Numpy_array_save/Q.npy", Q)
-np.save("Numpy_array_save/x_train.npy", X_train)
-np.save("Numpy_array_save/y_train.npy", Y_train)
+np.save("Numpy_array_save/x_test.npy", X_train)
+np.save("Numpy_array_save/y_test.npy", Y_train)
 
 print("Finsh!!")

@@ -54,8 +54,8 @@ class QNetwork(nn.Module):
 
 # %% Read data and prepare to train
 batch_size = 256
-file_path_x = os.path.join("Numpy_array_save", "train_OneRank", "x_train.npy")
-file_path_y = os.path.join("Numpy_array_save", "train_OneRank", "y_train.npy")
+file_path_x = os.path.join("Numpy_array_save", "train_OneRank_N=6_d=2", "x_train.npy")
+file_path_y = os.path.join("Numpy_array_save", "train_OneRank_N=6_d=2", "y_train.npy")
 X_train = np.load(file_path_x)
 Y_train = np.load(file_path_y)
 # Convert data to PyTorch tensors
@@ -73,17 +73,17 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 
 # %% Create the model, loss function, and optimizer:
-input_size = 5  # Size of each input sample
-N = 5 # Number of players
+N = 6 # Number of players
+input_size = N  # Size of each input sample
 lr_init = 0.01
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 model = QNetwork(input_size, output_size)
 criterion = nn.MSELoss()  # Mean squared error loss
 optimizer = optim.SGD(model.parameters(), lr=lr_init, momentum=0.9)
-scheduler = StepLR(optimizer, step_size=500, gamma=0.5)
+scheduler = StepLR(optimizer, step_size=700, gamma=0.5)
 
 # %% Training loop:
-num_epochs = 1000
+num_epochs = 500
 train_list = []
 valid_list = []
 for epoch in range(num_epochs):
