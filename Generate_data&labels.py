@@ -6,7 +6,7 @@ Created on : ------
 """
 import numpy as np
 
-def generate_Q_d_oneRank(N, L, mu=0, std=1, d=3):
+def generate_Q_d_oneRank(N, L, mu=0, std=1, d=3, SubMean=True):
     """
     :param d: number of vector one rank (int)
     :param N: number of players in game (int)
@@ -28,9 +28,16 @@ def generate_Q_d_oneRank(N, L, mu=0, std=1, d=3):
     u = repeated_u.reshape(L * N, N, 1)
     u_transposed = u.transpose((0, 2, 1))
     Q = np.matmul(u, u_transposed)
+    if SubMean:
+        # In this part we subtract the mean from every L trial in Q
+        trial_means = np.mean(Q, axis=(1, 2))
+        # Expand trial_means to have the same shape as Q (L, N, N)
+        trial_means_expanded = trial_means[:, np.newaxis, np.newaxis]
+        Q = Q - trial_means_expanded
     noise = std * np.random.randn(L*N, N, 1) + mu
     u_hat = u + noise
-    X_train = u_hat
+    # X_train = u_hat
+    X_train = np.matmul(u_hat, u_hat.transpose((0, 2, 1)))
     Y_train = Q.reshape(L*N, N**2, 1)
     return X_train, Y_train, Q_save
 
@@ -56,7 +63,10 @@ def generate_Q_oneRank(N, L, mu=0, std=1):
     u_hat = u + noise
     X_train = u_hat
     Y_train = Q.reshape(L*N, N**2, 1)
-    return X_train, Y_train, Q_save
+    B = np.ones((L*N, N, 1))
+    # Y_train_2 = -np.matmul(np.linalg.pinv(Q), B)
+    Y_train_2 = Q
+    return X_train, Y_train, Q_save, Y_train_2
 
 
 def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True):
@@ -112,18 +122,19 @@ def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True):
 # Initialize Parameters:
 alpha = 4.0# Hyperparam for exp matrix Q
 beta = 1 # Hyperparam for matrix B
-N = 6 # Number of players
+N = 5 # Number of players
 L = 100 # trials for Q and B
-d = 2
+d = 5
 mu = 0
 std = 1
 
-X_train, Y_train, Q = generate_Q_d_oneRank(N, L, mu, std, d)
+X_train, Y_train, Q, Y_train_2 = generate_Q_oneRank(N, L, mu, std)
 # Q, B, X_train, Y_train = generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True)
 #
 # Save arrays
 np.save("Numpy_array_save/Q.npy", Q)
 np.save("Numpy_array_save/x_test.npy", X_train)
-np.save("Numpy_array_save/y_test.npy", Y_train)
+np.save("Numpy_array_save/y_test_Nash.npy", Y_train)
+np.save("Numpy_array_save/y_test_No_Nash.npy", Y_train_2)
 
 print("Finsh!!")

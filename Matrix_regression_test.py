@@ -12,39 +12,26 @@ import torch.nn.functional as F
 import os
 import torch.nn.init as init
 # %% Setting Archticture network
-class SimpleNet(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(SimpleNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, 64)
-        self.fc2 = nn.Linear(64, output_size)
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-
-class QNetwork(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(QNetwork, self).__init__()
-        self.fc0 = nn.Linear(input_size, 512)
-        self.bn0 = nn.BatchNorm1d(512)
-        self.fc1 = nn.Linear(512, 256)
-        self.bn1 = self.bn1 = nn.BatchNorm1d(256)
-        self.fc2 = nn.Linear(256, 128)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.fc3 = nn.Linear(128, 64)
-        self.bn3 = nn.BatchNorm1d(64)
-        self.fc4 = nn.Linear(64, output_size)
+class MatrixRegressionNet(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(MatrixRegressionNet, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)  # BatchNorm layer after the first convolution
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)  # BatchNorm layer after the second convolution
+        self.fc1 = nn.Linear(64 * input_size * input_size, hidden_size)
+        self.bn3 = nn.BatchNorm1d(hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
         # Initialize the weights using Kaiming (He) Normal initialization for ReLU
         self.init_weights()
 
     def forward(self, x):
-        x = F.leaky_relu(self.bn0(self.fc0(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn1(self.fc1(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn2(self.fc2(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn3(self.fc3(x)), negative_slope=0.01)
-        x = torch.tanh(self.fc4(x))
-        # x = F.leaky_relu(self.fc4(x), negative_slope=0.01)
+        x = x.unsqueeze(1)  # Add a channel dimension for convolution
+        x = self.bn1(torch.relu(self.conv1(x)))  # Apply BatchNorm after the first convolution
+        x = self.bn2(torch.relu(self.conv2(x)))  # Apply BatchNorm after the second convolution
+        x = x.view(x.size(0), -1)  # Flatten for fully connected layers
+        x = torch.relu(self.bn3(self.fc1(x)))
+        x = self.fc2(x)
         return x
 
     def init_weights(self):
@@ -58,21 +45,22 @@ class QNetwork(nn.Module):
                 init.constant_(m.weight, 1)
                 init.constant_(m.bias, 0)
 
+
 # %% Read data and prepare to test
-file_path_x = os.path.join("Numpy_array_save", "test_N=d", "x_test.npy")
-file_path_y = os.path.join("Numpy_array_save", "test_N=d", "y_test.npy")
-file_path_Q = os.path.join("Numpy_array_save", "test_N=d", "Q.npy")
+file_path_x = os.path.join("Numpy_array_save", "test_conv", "x_test.npy")
+file_path_y = os.path.join("Numpy_array_save", "test_conv", "y_test.npy")
+file_path_Q = os.path.join("Numpy_array_save", "test_conv", "Q.npy")
 X_test = np.load(file_path_x)
 Y_test = np.load(file_path_y)
 Q = np.load(file_path_Q)
 
 # %% Load the trained model
-file_path_weights = os.path.join("trains_record", "N=d", "Q_Net.pth")
-N = 3 # Number of players
+file_path_weights = os.path.join("trains_record", "SGD", "Matrix_regression_Net.pth")
+hidden_size = 64
+N = 10 # Number of players
 input_size = N
 output_size = N ** 2  # Size of output (vectorized Q matrix)
-model = QNetwork(input_size, output_size)  # Initialize the model with the same architecture
-model.load_state_dict(torch.load(file_path_weights))
+model = MatrixRegressionNet(input_size, hidden_size, output_size)
 model.eval()  # Set the model to evaluation mode
 
 # %% Evaluate the model on the test set

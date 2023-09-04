@@ -16,40 +16,27 @@ import os
 from torch.optim.lr_scheduler import StepLR
 import torch.nn.init as init
 
-# %% Setting Archticture network
-class SimpleNet(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(SimpleNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, 64)
-        self.fc2 = nn.Linear(64, output_size)
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-class QNetwork(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(QNetwork, self).__init__()
-        self.fc0 = nn.Linear(input_size, 512)
-        self.bn0 = nn.BatchNorm1d(512)
-        self.fc1 = nn.Linear(512, 256)
-        self.bn1 = self.bn1 = nn.BatchNorm1d(256)
-        self.fc2 = nn.Linear(256, 128)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.fc3 = nn.Linear(128, 64)
-        self.bn3 = nn.BatchNorm1d(64)
-        self.fc4 = nn.Linear(64, output_size)
+# Define the architecture of the neural network
+class MatrixRegressionNet(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(MatrixRegressionNet, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)  # BatchNorm layer after the first convolution
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)  # BatchNorm layer after the second convolution
+        self.fc1 = nn.Linear(64 * input_size * input_size, hidden_size)
+        self.bn3 = nn.BatchNorm1d(hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
         # Initialize the weights using Kaiming (He) Normal initialization for ReLU
         self.init_weights()
 
-
     def forward(self, x):
-        x = F.leaky_relu(self.bn0(self.fc0(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn1(self.fc1(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn2(self.fc2(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn3(self.fc3(x)), negative_slope=0.01)
-        x = torch.tanh(self.fc4(x))
-        # x = F.leaky_relu(self.fc4(x), negative_slope=0.01)
+        x = x.unsqueeze(1)  # Add a channel dimension for convolution
+        x = self.bn1(torch.relu(self.conv1(x)))  # Apply BatchNorm after the first convolution
+        x = self.bn2(torch.relu(self.conv2(x)))  # Apply BatchNorm after the second convolution
+        x = x.view(x.size(0), -1)  # Flatten for fully connected layers
+        x = torch.relu(self.bn3(self.fc1(x)))
+        x = self.fc2(x)
         return x
 
     def init_weights(self):
@@ -65,9 +52,9 @@ class QNetwork(nn.Module):
 
 
 # %% Read data and prepare to train
-batch_size = 256
-file_path_x = os.path.join("Numpy_array_save", "train_compare_nash", "x_train.npy")
-file_path_y = os.path.join("Numpy_array_save", "train_compare_nash", "y_train_No_Nash.npy")
+batch_size = 128
+file_path_x = os.path.join("Numpy_array_save", "train_conv", "x_train.npy")
+file_path_y = os.path.join("Numpy_array_save", "train_conv", "y_train.npy")
 X_train = np.load(file_path_x)
 Y_train = np.load(file_path_y)
 # Convert data to PyTorch tensors
@@ -85,17 +72,18 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 
 # %% Create the model, loss function, and optimizer:
-N = 5 # Number of players
+N = 10 # Number of players
 input_size = N  # Size of each input sample
 lr_init = 0.01
-output_size = N # Size of output (vectorized Q matrix)
-model = QNetwork(input_size, output_size)
+hidden_size = 64
+output_size = N ** 2  # Size of output (vectorized Q matrix)
+model = MatrixRegressionNet(input_size, hidden_size, output_size)
 criterion = nn.MSELoss()  # Mean squared error loss
-optimizer = optim.SGD(model.parameters(), lr=lr_init)
+optimizer = optim.SGD(model.parameters(), lr=lr_init, momentum=0.9)
 scheduler = StepLR(optimizer, step_size=200, gamma=1)
 
 # %% Training loop:
-num_epochs = 300
+num_epochs = 100
 train_list = []
 valid_list = []
 for epoch in range(num_epochs):
@@ -108,10 +96,8 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         outputs = model(inputs)
         # Squeeze the target tensor to match the output size
-        # targets = targets.squeeze(dim=-1)
-        # No nash option add
-        outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
-        loss = criterion(outputs, torch.zeros(outputs.shape[0], N))
+        targets = targets.squeeze(dim=-1)
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
         train_loss += loss.item() * inputs.size(0)
@@ -125,10 +111,9 @@ for epoch in range(num_epochs):
             # Squeeze the input tensor to match the Fc size
             inputs = inputs.squeeze(dim=-1)
             # Squeeze the target tensor to match the output size
-            # targets = targets.squeeze(dim=-1)
+            targets = targets.squeeze(dim=-1)
             outputs = model(inputs)
-            outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
-            loss = criterion(outputs, torch.zeros(outputs.shape[0], N))
+            loss = criterion(outputs, targets)
             val_loss += loss.item() * inputs.size(0)
 
     train_loss /= len(train_loader.dataset)
@@ -147,6 +132,6 @@ plt.plot(epochs, valid_list, label='valid')
 plt.xlabel("# epochs"), plt.ylabel("Loss"), plt.legend()
 plt.show()
 # Save Network results
-PATH = './Q_Net.pth'
+PATH = './Matrix_regression_Net.pth'
 torch.save(model.state_dict(), PATH)
 print("Finsh")

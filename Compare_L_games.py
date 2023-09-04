@@ -13,6 +13,39 @@ import os
 import torch.nn.init as init
 
 # %% Setting Archticture network
+class MatrixRegressionNet(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(MatrixRegressionNet, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)  # BatchNorm layer after the first convolution
+        self.conv2 = nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)  # BatchNorm layer after the second convolution
+        self.fc1 = nn.Linear(64 * input_size * input_size, hidden_size)
+        self.bn3 = nn.BatchNorm1d(hidden_size)
+        self.fc2 = nn.Linear(hidden_size, output_size)
+        # Initialize the weights using Kaiming (He) Normal initialization for ReLU
+        self.init_weights()
+
+    def forward(self, x):
+        x = x.unsqueeze(1)  # Add a channel dimension for convolution
+        x = self.bn1(torch.relu(self.conv1(x)))  # Apply BatchNorm after the first convolution
+        x = self.bn2(torch.relu(self.conv2(x)))  # Apply BatchNorm after the second convolution
+        x = x.view(x.size(0), -1)  # Flatten for fully connected layers
+        x = torch.relu(self.bn3(self.fc1(x)))
+        x = self.fc2(x)
+        return x
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                # init.normal_(m.weight, mean=0, std=1.0)
+                init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                init.constant_(m.weight, 1)
+                init.constant_(m.bias, 0)
+
 class QNetwork(nn.Module):
     def __init__(self, input_size, output_size):
         super(QNetwork, self).__init__()
@@ -27,6 +60,7 @@ class QNetwork(nn.Module):
         self.fc4 = nn.Linear(64, output_size)
         # Initialize the weights using Kaiming (He) Normal initialization for ReLU
         self.init_weights()
+
 
     def forward(self, x):
         x = F.leaky_relu(self.bn0(self.fc0(x)), negative_slope=0.01)
@@ -92,10 +126,10 @@ def multi_agent_gradient_descent(N, T, learning_rate,
              cost_record size (T, N_expr)
     """
     # Init learning rate
-    lr2 = 0.00001 * np.ones((T,))  # NN
-    lr2[30000:] = 0.000001
-    lr1 = 0.0001 * np.ones((T, )) # Mean
-    lr1[6000:] = 0.0001
+    lr2 = 0.001 * np.ones((T,))  # NN
+    lr2[6000:] = 0.00001
+    lr1 = 0.001 * np.ones((T, )) # Mean
+    lr1[8000:] = 0.0001
     Qn_Randomize = np.random.rand(L, N, N, N)
     # Initialize x_agents
     x_agents_mean = 0.01 * np.ones((L, N, N, 1))
@@ -145,34 +179,35 @@ def multi_agent_gradient_descent(N, T, learning_rate,
 
 
 # %% Parameters
+hidden_size = 64
 L = 100 # samples of Q
-N = 6 # Number of players
+N = 5 # Number of players
 input_size = N
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 recordFlag = True # track the progress of cost and agent
-T = 50000 # Number of iteration
-learning_rate = 0.005 * np.reciprocal(np.power(range(1, T + 1), 0.7))
+T = 30000 # Number of iteration
+learning_rate = 0.009 * np.reciprocal(np.power(range(1, T + 1), 0.7))
 Bn = np.ones((L, N, N, 1))
 B = np.ones((L, N, 1))
 Border_projection = 70
 # %% Main loop
 # Step 1: mean of Q_train this will be new Qn_mean
-file_path_Q = os.path.join("Numpy_array_save", "train_OneRank_N=6_d=2", "Q.npy")
+file_path_Q = os.path.join("Numpy_array_save", "train_compare_nash", "Q.npy")
 Q_train = np.load(file_path_Q)
 Qn_mean = np.mean(Q_train, axis=0)
 Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(N, axis=0)
 Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(L, axis=0)
 
 # Step 2: upload test set ang generate Qn_NN using NN
-file_path_x = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "x_test.npy")
-file_path_y = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "y_test.npy")
-file_path_Q = os.path.join("Numpy_array_save", "test_OneRank_N=6_d=2", "Q.npy")
+file_path_x = os.path.join("Numpy_array_save", "test_compare_nash", "x_test.npy")
+file_path_y = os.path.join("Numpy_array_save", "test_compare_nash", "y_test_Nash.npy")
+file_path_Q = os.path.join("Numpy_array_save", "test_compare_nash", "Q.npy")
 X_test = np.load(file_path_x)
 Y_test = np.load(file_path_y)
 Q_test = np.load(file_path_Q)
 
-file_path_weights = os.path.join("trains_record", "SGD_500epochs(d=2)", "Q_Net.pth")
-model = QNetwork(input_size, output_size)  # Initialize the model with the same architecture
+file_path_weights = os.path.join("trains_record", "zero_label_withNash", "Q_Net.pth")
+model = QNetwork(input_size, output_size) # Initialize the model with the same architecture
 model.load_state_dict(torch.load(file_path_weights))
 model.eval()  # Set the model to evaluation mode
 
@@ -190,10 +225,32 @@ Q = Q_test
 x_agents_mean, x_agents_NN, x_agents_Randomiz, x_record_mean, x_record_NN, x_record_Randomize, cost_record_mean, cost_record_NN, cost_record_Randomize = multi_agent_gradient_descent(N, T, learning_rate,
                                                                                                                         Qn_mean, Qn_NN, Bn, recordFlag, Q, B, L, Border=Border_projection)
 
+# Step upload No_nash mode:
+# Init B and Q for calculate L trials cost
+B = np.repeat(B[:, np.newaxis, :, :], N, axis=1)
+Q = np.repeat(Q[:, np.newaxis, :, :], N, axis=1)
+file_path_y = os.path.join("Numpy_array_save", "test_N=5_(NoNash)", "y_test_No_Nash.npy")
+output_size = N
+file_path_weights = os.path.join("trains_record", "zero_label_withOutNash", "Q_Net.pth")
+model = QNetwork(input_size, output_size) # Initialize the model with the same architecture
+model.load_state_dict(torch.load(file_path_weights))
+model.eval()  # Set the model to evaluation mode
+
+with torch.no_grad():
+    # Sample example from test and squezze
+    X_sample = torch.tensor(X_test, dtype=torch.float32)
+    X_sample = X_sample.squeeze(dim=-1)
+    outputs = model(X_sample)
+    predicted_values = outputs.numpy()
+x_no_nash = predicted_values.reshape(L, N, N, 1)
+cost_no_nash = calculate_scores(Q, B, x_no_nash, N, N, L)
+cost_no_nash = np.mean(cost_no_nash)
+
 # %% Plot results
 t = np.arange(T)
+plt.plot(t, cost_no_nash * np.ones(T, ), label="NN_no_Nash")
 plt.plot(t, cost_record_mean, label="Mean"),
-plt.plot(t, cost_record_NN, label="NN"),
+plt.plot(t, cost_record_NN, label="NN_Nash"),
 plt.plot(t, cost_record_Randomize, label="Randomize"),
 plt.xlabel("# Iteration"), plt.ylabel("candadite_score"), plt.legend()
 plt.show()
