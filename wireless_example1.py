@@ -42,6 +42,8 @@ def multi_wireless_loop(N, L, T, g, lr):
     P = np.random.rand(L, N, 1) # Generate Power from uniform distributed
     # Initialize record variables
     P_record = np.zeros((T, L, N, 1))
+    global_objective = np.zeros((T, L))
+    gradients_record = np.zeros((T, L, N, 1))
     # Prepare g to calculation
     g_diag = np.diagonal(g_square, axis1=1, axis2=2)
     g_diag = g_diag.reshape(L, N, 1)
@@ -53,31 +55,43 @@ def multi_wireless_loop(N, L, T, g, lr):
         numerator = (g_diag / (In + N0))
         gradients = numerator / (1 + numerator * P)
         # update agent vector(P)
-        P -= lr[t] * gradients
+        P += lr[t] * gradients
         # Project the action to [Border_floor, Border_ceil] (Normalization)
         P = np.minimum(np.maximum(P, Border_floor), Border_ceil)
         # Save results in record
         P_record[t] = P
-    # Finaly Let's mean for all L trials
+        gradients_record[t] = gradients
+        # Calculate global objective
+        temp = np.log2(1 + numerator * P).squeeze()
+        global_objective[t] = np.sum(temp, axis=1)
+    # Finally Let's mean for all L trials
     P_record = P_record.squeeze()
+    gradients_record = gradients_record.squeeze()
     mean_P_record = np.mean(P_record, axis=1)
-    return mean_P_record
+    mean_gradients_record = np.mean(gradients_record, axis=1)
+    mean_global_objective = np.mean(global_objective, axis=1)
+    return mean_P_record, mean_global_objective, mean_gradients_record
 
 # Parameters:
 N = 5
 alpha = 10e-3
 L = 300
-T = 35000
+T = 50000
 learning_rate = 0.009 * np.reciprocal(np.power(range(1, T + 1), 0.65))
 # Generate gain matrix
 g = generate_gain_channel(L, N, alpha)
-final_cost = multi_wireless_loop(N, L, T, g, learning_rate)
+P_costs, global_objective_final, grad_record = multi_wireless_loop(N, L, T, g, learning_rate)
 # Plot results
 t = np.arange(T)
+plt.figure(1)
 for n in range(N):
-    Pn = final_cost[:, n]
+    Pn = P_costs[:, n]
     plt.plot(t, Pn, label=f"P{n}"), plt.xlabel("# Iteration"),
     plt.ylabel("# candidate action"), plt.legend()
+plt.figure(2)
+plt.plot(t, global_objective_final), plt.xlabel("# Iteration"), plt.ylabel("Global Objective")
 plt.show()
-
+plt.figure(3)
+plt.plot(t, grad_record), plt.xlabel("# Iteration"), plt.ylabel("gradients")
+plt.show()
 print("Finsh !!!")
