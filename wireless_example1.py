@@ -25,7 +25,7 @@ def generate_gain_channel(L, N, alpha):
     g = alpha / (distances ** 2)
     return g
 
-def multi_wireless_loop(N, L, T, g, lr):
+def multi_wireless_loop(N, L, T, g, lr, beta):
     """
     :param N: (int) number of players
     :param L: (int) trials of game
@@ -53,7 +53,7 @@ def multi_wireless_loop(N, L, T, g, lr):
         In = np.matmul(g_colum, P)
         # calculate gradients
         numerator = (g_diag / (In + N0))
-        gradients = numerator / (1 + numerator * P)
+        gradients = (numerator / (1 + numerator * P)) - beta
         # update agent vector(P)
         P += lr[t] * gradients
         # Project the action to [Border_floor, Border_ceil] (Normalization)
@@ -62,7 +62,8 @@ def multi_wireless_loop(N, L, T, g, lr):
         P_record[t] = P
         gradients_record[t] = gradients
         # Calculate global objective
-        temp = np.log2(1 + numerator * P).squeeze()
+        temp = np.log2(1 + numerator * P) - beta * P
+        temp = temp.squeeze()
         global_objective[t] = np.sum(temp, axis=1)
     # Finally Let's mean for all L trials
     P_record = P_record.squeeze()
@@ -73,14 +74,15 @@ def multi_wireless_loop(N, L, T, g, lr):
     return mean_P_record, mean_global_objective, mean_gradients_record
 
 # Parameters:
+beta=1
 N = 5
 alpha = 10e-3
 L = 300
 T = 50000
-learning_rate = 0.009 * np.reciprocal(np.power(range(1, T + 1), 0.65))
+learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.7))
 # Generate gain matrix
 g = generate_gain_channel(L, N, alpha)
-P_costs, global_objective_final, grad_record = multi_wireless_loop(N, L, T, g, learning_rate)
+P_costs, global_objective_final, grad_record = multi_wireless_loop(N, L, T, g, learning_rate, beta)
 # Plot results
 t = np.arange(T)
 plt.figure(1)
