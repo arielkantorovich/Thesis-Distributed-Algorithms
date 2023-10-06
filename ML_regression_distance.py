@@ -66,8 +66,8 @@ class QNetwork(nn.Module):
 
 # %% Read data and prepare to train
 batch_size = 256
-file_path_x = os.path.join("Numpy_array_save", "train_compare_nash", "x_train.npy")
-file_path_y = os.path.join("Numpy_array_save", "train_compare_nash", "y_train_No_Nash.npy")
+file_path_x = os.path.join("Numpy_array_save", "train_distance_NoNash", "x_train.npy")
+file_path_y = os.path.join("Numpy_array_save", "train_distance_NoNash", "y_train_No_Nash.npy")
 X_train = np.load(file_path_x)
 Y_train = np.load(file_path_y)
 # Convert data to PyTorch tensors
@@ -85,13 +85,13 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 
 # %% Create the model, loss function, and optimizer:
-N = 5 # Number of players
-input_size = N  # Size of each input sample
+N = 7 # Number of players
+input_size = 5  # Size of each input sample
 lr_init = 0.01
 output_size = N # Size of output (vectorized Q matrix)
 model = QNetwork(input_size, output_size)
 criterion = nn.MSELoss()  # Mean squared error loss
-optimizer = optim.SGD(model.parameters(), lr=lr_init)
+optimizer = optim.SGD(model.parameters(), lr=lr_init, momentum=0.9)
 scheduler = StepLR(optimizer, step_size=200, gamma=1)
 
 # %% Training loop:
@@ -108,10 +108,10 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
         outputs = model(inputs)
         # Squeeze the target tensor to match the output size
-        # targets = targets.squeeze(dim=-1)
+        targets = targets.squeeze(dim=-1)
         # No nash option add
-        outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
-        loss = criterion(outputs, torch.zeros(outputs.shape[0], N))
+        # outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
+        loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
         train_loss += loss.item() * inputs.size(0)
@@ -125,10 +125,10 @@ for epoch in range(num_epochs):
             # Squeeze the input tensor to match the Fc size
             inputs = inputs.squeeze(dim=-1)
             # Squeeze the target tensor to match the output size
-            # targets = targets.squeeze(dim=-1)
+            targets = targets.squeeze(dim=-1)
             outputs = model(inputs)
-            outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
-            loss = criterion(outputs, torch.zeros(outputs.shape[0], N))
+            # outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
+            loss = criterion(outputs, targets)
             val_loss += loss.item() * inputs.size(0)
 
     train_loss /= len(train_loader.dataset)

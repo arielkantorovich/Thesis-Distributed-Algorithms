@@ -127,9 +127,9 @@ def multi_agent_gradient_descent(N, T, learning_rate,
     """
     # Init learning rate
     lr2 = 0.001 * np.ones((T,))  # NN
-    lr2[6000:] = 0.00001
+    lr2[11000:] = 0.0001
     lr1 = 0.001 * np.ones((T, )) # Mean
-    lr1[8000:] = 0.0001
+    lr1[11000:] = 0.0001
     Qn_Randomize = np.random.rand(L, N, N, N)
     # Initialize x_agents
     x_agents_mean = 0.01 * np.ones((L, N, N, 1))
@@ -181,8 +181,8 @@ def multi_agent_gradient_descent(N, T, learning_rate,
 # %% Parameters
 hidden_size = 64
 L = 100 # samples of Q
-N = 5 # Number of players
-input_size = N
+N = 7 # Number of players
+input_size = 5
 output_size = N ** 2  # Size of output (vectorized Q matrix)
 recordFlag = True # track the progress of cost and agent
 T = 30000 # Number of iteration
@@ -192,21 +192,21 @@ B = np.ones((L, N, 1))
 Border_projection = 70
 # %% Main loop
 # Step 1: mean of Q_train this will be new Qn_mean
-file_path_Q = os.path.join("Numpy_array_save", "train_compare_nash", "Q.npy")
+file_path_Q = os.path.join("Numpy_array_save", "train_distance_NoNash", "Q.npy")
 Q_train = np.load(file_path_Q)
 Qn_mean = np.mean(Q_train, axis=0)
 Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(N, axis=0)
 Qn_mean = np.expand_dims(Qn_mean, axis=0).repeat(L, axis=0)
 
 # Step 2: upload test set ang generate Qn_NN using NN
-file_path_x = os.path.join("Numpy_array_save", "test_compare_nash", "x_test.npy")
-file_path_y = os.path.join("Numpy_array_save", "test_compare_nash", "y_test_Nash.npy")
-file_path_Q = os.path.join("Numpy_array_save", "test_compare_nash", "Q.npy")
+file_path_x = os.path.join("Numpy_array_save", "test_distance_NoNash", "x_test.npy")
+file_path_y = os.path.join("Numpy_array_save", "test_distance_NoNash", "y_test_Nash.npy")
+file_path_Q = os.path.join("Numpy_array_save", "test_distance_NoNash", "Q.npy")
 X_test = np.load(file_path_x)
 Y_test = np.load(file_path_y)
 Q_test = np.load(file_path_Q)
 
-file_path_weights = os.path.join("trains_record", "zero_label_withNash", "Q_Net.pth")
+file_path_weights = os.path.join("trains_record", "distance_withNash", "Q_Net.pth")
 model = QNetwork(input_size, output_size) # Initialize the model with the same architecture
 model.load_state_dict(torch.load(file_path_weights))
 model.eval()  # Set the model to evaluation mode
@@ -229,9 +229,9 @@ x_agents_mean, x_agents_NN, x_agents_Randomiz, x_record_mean, x_record_NN, x_rec
 # Init B and Q for calculate L trials cost
 B = np.repeat(B[:, np.newaxis, :, :], N, axis=1)
 Q = np.repeat(Q[:, np.newaxis, :, :], N, axis=1)
-file_path_y = os.path.join("Numpy_array_save", "test_N=5_(NoNash)", "y_test_No_Nash.npy")
+file_path_y = os.path.join("Numpy_array_save", "test_distance_NoNash", "y_test_No_Nash.npy")
 output_size = N
-file_path_weights = os.path.join("trains_record", "zero_label_withOutNash", "Q_Net.pth")
+file_path_weights = os.path.join("trains_record", "distance_withOutNash", "Q_Net.pth")
 model = QNetwork(input_size, output_size) # Initialize the model with the same architecture
 model.load_state_dict(torch.load(file_path_weights))
 model.eval()  # Set the model to evaluation mode

@@ -64,8 +64,8 @@ def generate_Q_oneRank(N, L, mu=0, std=1):
     X_train = u_hat
     Y_train = Q.reshape(L*N, N**2, 1)
     B = np.ones((L*N, N, 1))
-    # Y_train_2 = -np.matmul(np.linalg.pinv(Q), B)
-    Y_train_2 = Q
+    Y_train_2 = -np.matmul(np.linalg.pinv(Q), B)
+    # Y_train_2 = Q
     return X_train, Y_train, Q_save, Y_train_2
 
 
@@ -105,31 +105,33 @@ def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True):
     mean_dist = np.mean(distances, axis=2)
     mean_dist = mean_dist.reshape(L*N, 1)
     # Generate M neighbors that close
-    M = 2
+    M = 3
     sorted_rows = np.sort(distances, axis=-1)
     second_smallest_distances = sorted_rows[:, :, 0:(M+1)]
     small_dist = second_smallest_distances.reshape(N * L, M+1)
     # Finally build X train
-    # X_train = small_dist
-    X_train = np.concatenate((points_temp, mean_dist, small_dist), axis=1)
+    X_train = np.concatenate((mean_dist, small_dist), axis=1)
+    # X_train = np.concatenate((points_temp, mean_dist, small_dist), axis=1)
     Q_new = np.repeat(Q, N, axis=0)
     Y_train = Q_new.reshape(L*N, N**2, 1)
     # X_train = Y_train # Option learn Identity matrix
-    return Q, B, X_train, Y_train
+    B_expand = np.ones((N*L, N, 1))
+    Y_train_2 = -np.matmul(np.linalg.pinv(Q_new), B_expand)
+    return Q, B, X_train, Y_train, Y_train_2
 
 
 
 # Initialize Parameters:
 alpha = 4.0# Hyperparam for exp matrix Q
 beta = 1 # Hyperparam for matrix B
-N = 5 # Number of players
+N = 7 # Number of players
 L = 100 # trials for Q and B
 d = 5
 mu = 0
 std = 1
 
-X_train, Y_train, Q, Y_train_2 = generate_Q_oneRank(N, L, mu, std)
-# Q, B, X_train, Y_train = generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True)
+# X_train, Y_train, Q, Y_train_2 = generate_Q_oneRank(N, L, mu, std)
+Q, B, X_train, Y_train, Y_train_2 = generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=True)
 #
 # Save arrays
 np.save("Numpy_array_save/Q.npy", Q)

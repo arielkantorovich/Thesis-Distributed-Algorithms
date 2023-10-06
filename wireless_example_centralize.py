@@ -48,19 +48,26 @@ def multi_wireless_loop(N, L, T, g, lr, beta):
     g_diag = np.diagonal(g_square, axis1=1, axis2=2)
     g_diag = g_diag.reshape(L, N, 1)
     g_colum = np.transpose(g_square, axes=(0, 2, 1))
+    # Initialize gradients array
+    gradients_first = np.zeros((L, N, 1))
+    gradients_second = np.zeros((L, N, 1))
     for t in range(T):
         # calculate instance
-        In = np.matmul(g_colum, P)
+        In = np.matmul(g_colum, P) - g_diag * P
         # calculate gradients
         numerator = (g_diag / (In + N0))
-        gradients = (numerator / (1 + numerator * P)) - beta
+        gradients_first = (numerator / (1 + numerator * P)) - beta
+        for n in range(N):
+            for j in range(N):
+                if n != j:
+                    gradients_second[:, n] += g_diag[:, j] * g_square[:, n, j].reshape(-1, 1) * P[:, j] / ((In[:, j] + N0) * (In[:, j] + N0 + g_diag[:, j] * P[:, j]))
         # update agent vector(P)
-        P += lr[t] * gradients
+        P += lr[t] * (gradients_first - gradients_second)
         # Project the action to [Border_floor, Border_ceil] (Normalization)
         P = np.minimum(np.maximum(P, Border_floor), Border_ceil)
         # Save results in record
         P_record[t] = P
-        gradients_record[t] = gradients
+        gradients_record[t] = gradients_first - gradients_second
         # Calculate global objective
         temp = np.log2(1 + numerator * P) - beta * P
         temp = temp.squeeze()
@@ -74,7 +81,7 @@ def multi_wireless_loop(N, L, T, g, lr, beta):
     return mean_P_record, mean_global_objective, mean_gradients_record
 
 # Parameters:
-beta=0.7
+beta=0.0
 N = 5
 alpha = 10e-3
 L = 300
