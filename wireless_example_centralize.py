@@ -6,6 +6,32 @@ Created on : ------
 """
 import numpy as np
 import matplotlib.pyplot as plt
+from numba import jit
+import time
+
+@jit(nopython=True)
+def calc_second_gradient(N, gradients_second, g_diag, g_square, P, In):
+    """
+    :param N: int number of Players
+    :param gradients_second: zero numpy array size (L, N, 1)
+    :param g_diag: numpy array size (L, N, 1)
+    :param g_square: numpy array size (L, N, N)
+    :param P: numpy array size (L, N, 1)
+    :param In: numpy array size (L, N, 1)
+    :return: gradients_second: numpy array size (L, N, 1)
+    """
+    N0 = 0.001
+    L, _, _ = gradients_second.shape
+    for n in range(N):
+        for j in range(N):
+            if n != j:
+                for l in range(L):
+                    gradients_second[l, n, 0] += (
+                        g_diag[l, j, 0] * g_square[l, n, j] * P[l, j, 0] /
+                        ((In[l, j, 0] + N0) * (In[l, j, 0] + N0 + g_diag[l, j, 0] * P[l, j, 0]))
+                    )
+    return gradients_second
+
 
 def generate_gain_channel(L, N, alpha):
     """
@@ -57,10 +83,16 @@ def multi_wireless_loop(N, L, T, g, lr, beta):
         # calculate gradients
         numerator = (g_diag / (In + N0))
         gradients_first = (numerator / (1 + numerator * P)) - beta
-        for n in range(N):
-            for j in range(N):
-                if n != j:
-                    gradients_second[:, n] += g_diag[:, j] * g_square[:, n, j].reshape(-1, 1) * P[:, j] / ((In[:, j] + N0) * (In[:, j] + N0 + g_diag[:, j] * P[:, j]))
+        ###########################################################################################################################################
+        # tic = time.time()
+        gradients_second = calc_second_gradient(N, gradients_second, g_diag, g_square, P, In)
+        # for n in range(N):
+        #     for j in range(N):
+        #         if n != j:
+        #             gradients_second[:, n] += g_diag[:, j] * g_square[:, n, j].reshape(-1, 1) * P[:, j] / ((In[:, j] + N0) * (In[:, j] + N0 + g_diag[:, j] * P[:, j]))
+        # toc = time.time()
+        # print(f"Time Implementation: {toc - tic}")
+        ################################################################################################################################################################
         # update agent vector(P)
         P += lr[t] * (gradients_first - gradients_second)
         # Project the action to [Border_floor, Border_ceil] (Normalization)
@@ -86,7 +118,7 @@ N = 5
 alpha = 10e-3
 L = 300
 T = 50000
-learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.65))
+learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.9))
 # Generate gain matrix
 g = generate_gain_channel(L, N, alpha)
 P_costs, global_objective_final, grad_record = multi_wireless_loop(N, L, T, g, learning_rate, beta)
