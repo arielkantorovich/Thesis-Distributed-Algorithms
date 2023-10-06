@@ -117,10 +117,18 @@ beta=0.0
 N = 5
 alpha = 10e-3
 L = 300
-T = 50000
+T = 80000
 learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.9))
+add_gain = True
+add_gain_param = 10.0
+
 # Generate gain matrix
 g = generate_gain_channel(L, N, alpha)
+# Add Gain to transmiter channel
+if add_gain:
+    g_channel = add_gain_param * np.eye(N)
+    g = g + g_channel
+
 P_costs, global_objective_final, grad_record = multi_wireless_loop(N, L, T, g, learning_rate, beta)
 # Plot results
 t = np.arange(T)
