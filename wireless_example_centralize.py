@@ -30,7 +30,7 @@ def calc_second_gradient(N, gradients_second, g_diag, g_square, P, In):
                         g_diag[l, j, 0] * g_square[l, n, j] * P[l, j, 0] /
                         ((In[l, j, 0] + N0) * (In[l, j, 0] + N0 + g_diag[l, j, 0] * P[l, j, 0]))
                     )
-    return gradients_second
+    return -1.0 * gradients_second
 
 
 def generate_gain_channel(L, N, alpha):
@@ -65,7 +65,7 @@ def multi_wireless_loop(N, L, T, g, lr, beta):
     Border_ceil = 1
     N0 = 0.001
     g_square = g ** 2
-    P = np.random.rand(L, N, 1) # Generate Power from uniform distributed
+    P = 0.1 * np.random.rand(L, N, 1) # Generate Power from uniform distributed
     # Initialize record variables
     P_record = np.zeros((T, L, N, 1))
     global_objective = np.zeros((T, L))
@@ -94,12 +94,12 @@ def multi_wireless_loop(N, L, T, g, lr, beta):
         # print(f"Time Implementation: {toc - tic}")
         ################################################################################################################################################################
         # update agent vector(P)
-        P += lr[t] * (gradients_first - gradients_second)
+        P += lr[t] * (gradients_first + gradients_second)
         # Project the action to [Border_floor, Border_ceil] (Normalization)
         P = np.minimum(np.maximum(P, Border_floor), Border_ceil)
         # Save results in record
         P_record[t] = P
-        gradients_record[t] = gradients_first - gradients_second
+        gradients_record[t] = gradients_first + gradients_second
         # Calculate global objective
         temp = np.log2(1 + numerator * P) - beta * P
         temp = temp.squeeze()
@@ -118,9 +118,10 @@ N = 5
 alpha = 10e-3
 L = 300
 T = 80000
-learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.9))
-add_gain = True
-add_gain_param = 10.0
+learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.8))
+# learning_rate = 0.0001 * np.ones((T, ))
+add_gain = False
+add_gain_param = 1000.0
 
 # Generate gain matrix
 g = generate_gain_channel(L, N, alpha)

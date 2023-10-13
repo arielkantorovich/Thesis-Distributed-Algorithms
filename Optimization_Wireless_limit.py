@@ -27,15 +27,15 @@ N = 5
 N0 = 0.001
 alpha = 10e-3
 L = 1
-add_gain = True
-add_gain_param = 10.0
+add_gain = False
+add_gain_param = 1000.0
 g = generate_gain_channel(L, N, alpha)
 # Add Gain to transmiter channel
 if add_gain:
     g_channel = add_gain_param * np.eye(N)
     g = g + g_channel
 g_square = g ** 2
-P = np.random.rand(L, N, 1)  # Generate Power from uniform distributed
+P = 0.1 * np.random.rand(L, N, 1)  # Generate Power from uniform distributed
 # Prepare g to calculation
 g_diag = np.diagonal(g_square, axis1=1, axis2=2)
 g_diag = g_diag.reshape(L, N, 1)
