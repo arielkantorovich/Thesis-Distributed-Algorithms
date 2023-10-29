@@ -89,7 +89,7 @@ def multi_wireless_loop(N, L, T, g, lr, beta, P):
         P_record[t] = P
         gradients_record[t] = gradients_first + gradients_second
         # Calculate global objective
-        temp = np.log(1 + numerator * P) - beta * P
+        temp = np.log(1 + numerator * P)
         temp = temp.squeeze()
         global_objective[t] = np.sum(temp, axis=0)
     # Finally Let's mean for all L trials
@@ -115,15 +115,15 @@ def objective_function(P, *args):
 
 
 # Define Optimization Parameters
-beta = 0.0
+beta = 0.7925
 N = 5
 N0 = 0.001
 alpha = 10e-3
 L = 1
-T = 80000
+T = 60000
 # learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.65))
 learning_rate = 0.0001 * np.ones((T, ))
-add_gain = True
+add_gain = False
 add_gain_param = 10.0
 g = generate_gain_channel(L, N, alpha)
 # Add Gain to transmiter channel
@@ -157,10 +157,22 @@ optimal_objective_value = -result.fun
 print("Optimal power allocation:", optimal_power_allocation)
 print("Optimal value of the objective function:", optimal_objective_value)
 
+# global_check = 0.0
+# best_beta = 0.0
+# beta_list = np.linspace(0.79, 0.8, 25)
+# for beta_i in beta_list:
+#     P_record, global_record, grad_record = multi_wireless_loop(N, L, T, g, learning_rate, beta_i, P)
+#     if global_record[T-1] > global_check:
+#         best_beta = beta_i
+#         print(f"Beta = {best_beta}")
+#         print(f"Global = {global_record[T-1]}")
 
-# run my loop code
+
+# # run my loop code
 P_record, global_record, grad_record = multi_wireless_loop(N, L, T, g, learning_rate, beta, P)
-
+print(f"Beta=0 (Nash), Total Power={N} ")
+print(f"Optimization Package, Total Power = {np.sum(optimal_power_allocation)}")
+print(f"Beta={beta}, Total Power={np.sum(P_record[T-1])} ")
 
 # Plot results
 t = np.arange(T)
