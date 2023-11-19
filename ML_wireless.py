@@ -16,29 +16,25 @@ import os
 from torch.optim.lr_scheduler import StepLR
 import torch.nn.init as init
 
+
 # %% Setting Archticture network
 class Wireless(nn.Module):
     def __init__(self, input_size, output_size):
         super(Wireless, self).__init__()
-        self.fc0 = nn.Linear(input_size, 512)
-        self.bn0 = nn.BatchNorm1d(512)
-        self.fc1 = nn.Linear(512, 256)
-        self.bn1 = self.bn1 = nn.BatchNorm1d(256)
-        self.fc2 = nn.Linear(256, 128)
-        self.bn2 = nn.BatchNorm1d(128)
-        self.fc3 = nn.Linear(128, 64)
-        self.bn3 = nn.BatchNorm1d(64)
-        self.fc4 = nn.Linear(64, output_size)
-        # Initialize the weights using Kaiming (He) Normal initialization for ReLU
+        self.fc1 = nn.Linear(input_size, 64)
+        self.bn1 = nn.BatchNorm1d(64)
+        self.fc2 = nn.Linear(64, 32)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.fc3 = nn.Linear(32, 16)
+        self.bn3 = nn.BatchNorm1d(16)
+        self.fc4 = nn.Linear(16, output_size)  # Output layer with 1 neuron for beta prediction
         self.init_weights()
 
-
     def forward(self, x):
-        x = F.leaky_relu(self.bn0(self.fc0(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn1(self.fc1(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn2(self.fc2(x)), negative_slope=0.01)
-        x = F.leaky_relu(self.bn3(self.fc3(x)), negative_slope=0.01)
-        x = F.relu(self.fc4(x))
+        x = torch.relu(self.bn1(self.fc1(x)))
+        x = torch.relu(self.bn2(self.fc2(x)))
+        x = torch.relu(self.bn3(self.fc3(x)))
+        x = torch.relu(self.fc4(x))
         return x
 
     def init_weights(self):
@@ -53,12 +49,27 @@ class Wireless(nn.Module):
                 init.constant_(m.bias, 0)
 
 
-# %% Read data and prepare to train
+# %% Parameters
+N = 5 # Number of players
+input_size = 4
+lr_init = 0.03
+output_size = 1
+Normalize = False
 batch_size = 128
-file_path_x = os.path.join("Numpy_array_save", "N=5_wireless", "X_train.npy")
+
+# %% Read data and prepare to train
+file_path_x = os.path.join("Numpy_array_save", "N=5_wireless", "X_train_new.npy")
 file_path_y = os.path.join("Numpy_array_save", "N=5_wireless", "Y_train.npy")
 X_train = np.load(file_path_x)
 Y_train = np.load(file_path_y)
+
+# Normalize the input data (z-score normalization)
+if Normalize:
+    epsilon = 1e-10
+    mean = X_train.mean(axis=1)
+    std = X_train.std(axis=1)
+    X_train = (X_train - mean[:, np.newaxis]) / (std[:, np.newaxis] + epsilon)
+
 # Convert data to PyTorch tensors
 X_train = torch.tensor(X_train, dtype=torch.float32)
 Y_train = torch.tensor(Y_train, dtype=torch.float32)
@@ -74,17 +85,14 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=True)
 
 # %% Create the model, loss function, and optimizer:
-N = 5 # Number of players
-input_size = 15  # Size of each input sample
-lr_init = 0.01
-output_size = 1 # Size of output (vectorized Q matrix)
-model = Wireless(input_size, output_size)
-criterion = nn.MSELoss()  # Mean squared error loss
-optimizer = optim.SGD(model.parameters(), lr=lr_init, momentum=0.9)
-scheduler = StepLR(optimizer, step_size=200, gamma=1)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = Wireless(input_size, output_size).to(device)
+criterion = nn.L1Loss()
+optimizer = optim.SGD(model.parameters(), lr=lr_init)
+scheduler = StepLR(optimizer, step_size=300, gamma=1)
 
 # %% Training loop:
-num_epochs = 300
+num_epochs = 400
 train_list = []
 valid_list = []
 for epoch in range(num_epochs):
@@ -93,13 +101,13 @@ for epoch in range(num_epochs):
 
     for inputs, targets in train_loader:
         # Squeeze the input tensor to match the Fc size
+        inputs, targets = inputs.to(device), targets.to(device)
         inputs = inputs.squeeze(dim=-1)
+        # inputs = inputs.reshape(inputs.shape[0], 1)
         optimizer.zero_grad()
         outputs = model(inputs)
         # Squeeze the target tensor to match the output size
-        targets = targets.squeeze(dim=-1)
-        # No nash option add
-        # outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
+        outputs = outputs.squeeze(dim=-1)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
@@ -112,11 +120,11 @@ for epoch in range(num_epochs):
     with torch.no_grad():
         for inputs, targets in val_loader:
             # Squeeze the input tensor to match the Fc size
+            inputs, targets = inputs.to(device), targets.to(device)
             inputs = inputs.squeeze(dim=-1)
-            # Squeeze the target tensor to match the output size
-            targets = targets.squeeze(dim=-1)
+            # inputs = inputs.reshape(inputs.shape[0], 1)
             outputs = model(inputs)
-            # outputs = torch.bmm(outputs.unsqueeze(1), targets).squeeze(1) + torch.ones(outputs.shape[0], N)
+            outputs = outputs.squeeze(dim=-1)
             loss = criterion(outputs, targets)
             val_loss += loss.item() * inputs.size(0)
 

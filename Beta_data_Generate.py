@@ -1,37 +1,9 @@
-# -*- coding: utf-8 -*-
-"""
-Created on : ------
-@author: Ariel_Kantorovich
-"""
-
 import numpy as np
-import matplotlib.pyplot as plt
+import scipy.optimize as optim
 from numba import jit
+import matplotlib.pyplot as plt
 
-
-@jit(nopython=True)
-def calc_second_gradient(N, gradients_second, g_diag, g_square, P, In):
-    """
-    :param N: int number of Players
-    :param gradients_second: zero numpy array size (L, N, 1)
-    :param g_diag: numpy array size (L, N, 1)
-    :param g_square: numpy array size (L, N, N)
-    :param P: numpy array size (L, N, 1)
-    :param In: numpy array size (L, N, 1)
-    :return: gradients_second: numpy array size (L, N, 1)
-    """
-    N0 = 0.001
-    L, _, _ = gradients_second.shape
-    for n in range(N):
-        for j in range(N):
-            if n != j:
-                for l in range(L):
-                    gradients_second[l, n, 0] += (
-                        g_diag[l, j, 0] * g_square[l, n, j] * P[l, j, 0] /
-                        ((In[l, j, 0] + N0) * (In[l, j, 0] + N0 + g_diag[l, j, 0] * P[l, j, 0]))
-                    )
-    return -1.0 * gradients_second
-
+# np.random.seed(0) # Set Initialize Vector
 
 def generate_gain_channel(L, N, alpha):
     """
@@ -51,7 +23,30 @@ def generate_gain_channel(L, N, alpha):
     g = alpha / (distances ** 2)
     return g
 
-def multi_wireless_loop(N, L, T, g, lr, P, beta):
+@jit(nopython=True)
+def calc_second_gradient(N, gradients_second, g_diag, g_square, P, In):
+    """
+    :param N: int number of Players
+    :param gradients_second: zero numpy array size (L, N, 1)
+    :param g_diag: numpy array size (L, N, 1)
+    :param g_square: numpy array size (L, N, N)
+    :param P: numpy array size (L, N, 1)
+    :param In: numpy array size (L, N, 1)
+    :return: gradients_second: numpy array size (L, N, 1)
+    """
+    N0 = 0.001
+    # L, _, _ = gradients_second.shape
+    for n in range(N):
+        for j in range(N):
+            if n != j:
+                gradients_second[n, 0] += (
+                        g_diag[j, 0] * g_square[n, j] * P[j, 0] /
+                        ((In[j, 0] + N0) * (In[j, 0] + N0 + g_diag[j, 0] * P[j, 0]))
+                )
+    return -1.0 * gradients_second
+
+
+def multi_wireless_loop(N, L, T, g, lr, beta, P):
     """
     :param N: (int) number of players
     :param L: (int) trials of game
@@ -66,88 +61,149 @@ def multi_wireless_loop(N, L, T, g, lr, P, beta):
     N0 = 0.001
     g_square = g ** 2
     # Initialize record variables
-    P_record = np.zeros((T, L, N, 1))
-    global_objective = np.zeros((T, L))
-    gradients_record = np.zeros((T, L, N, 1))
+    P_record = np.zeros((T, N, 1))
+    global_objective = np.zeros((T, ))
+    gradients_record = np.zeros((T, N, 1))
     # Prepare g to calculation
     g_diag = np.diagonal(g_square, axis1=1, axis2=2)
-    g_diag = g_diag.reshape(L, N, 1)
+    g_diag = g_diag.reshape(N, 1)
     g_colum = np.transpose(g_square, axes=(0, 2, 1))
     # Initialize gradients array
-    gradients_first = np.zeros((L, N, 1))
-    gradients_second = np.zeros((L, N, 1))
+    gradients_first = np.zeros((N, 1))
+    gradients_second = np.zeros((N, 1))
+    # squeezze
+    g_square = np.squeeze(g_square, axis=0)
+    g_colum = np.squeeze(g_colum, axis=0)
     for t in range(T):
         # calculate instance
         In = np.matmul(g_colum, P) - g_diag * P
-
         # calculate gradients
         numerator = (g_diag / (In + N0))
         gradients_first = (numerator / (1 + numerator * P)) - beta
+        ###########################################################################################################################################
+        # calcaulate the second gradient
         gradients_second = calc_second_gradient(N, gradients_second, g_diag, g_square, P, In)
-
         # update agent vector(P)
         P += lr[t] * (gradients_first + gradients_second)
         # Project the action to [Border_floor, Border_ceil] (Normalization)
         P = np.minimum(np.maximum(P, Border_floor), Border_ceil)
-
         # Save results in record
         P_record[t] = P
         gradients_record[t] = gradients_first + gradients_second
-
         # Calculate global objective
         temp = np.log(1 + numerator * P)
         temp = temp.squeeze()
-        global_objective[t] = np.sum(temp, axis=1)
+        global_objective[t] = np.sum(temp, axis=0)
+    # Finally Let's mean for all L trials
+    P_record = P_record.squeeze()
+    gradients_record = gradients_record.squeeze()
+    return P_record, global_objective, gradients_record
 
-    # Finally Let's return last P and global fot L trials
-    return P_record[T-1].squeeze(), global_objective[T-1]
+def objective_function(P, *args):
+    """
+    We define the sum with minus because in general scipy optimization algorithms try to minimize objective
+    :param P:
+    :param g:
+    :param I:
+    :param N0:
+    :return:
+    """
+    g_diag, g_colum, N0 = args
+    P = P.reshape(P.shape[0], 1)
+    I = np.matmul(g_colum, P) - g_diag * P
+    numerator = ((g_diag * P) / (I + N0))
+    x = np.sum(np.log(1 + numerator))
+    return -1 * x
 
-# Parameters:
+
+# Define Optimization Parameters
 N = 5
-alpha = 10e-3
-L = 2000
-T = 40000
-learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.65))
-# learning_rate = 0.0001 * np.ones((T, ))
+N0 = 0.001
+alpha = 10e-2
+L = 1
+T = 60000
 add_gain = False
-add_gain_param = 1000.0
+add_gain_param = 10.0
+L_dataSet = 30000
 
-# Generate gain matrix
-g = generate_gain_channel(L, N, alpha)
-# Add Gain to transmiter channel
-if add_gain:
-    g_channel = add_gain_param * np.eye(N)
-    g = g + g_channel
+# Prepare data and label
+X = np.zeros((L_dataSet * N, 3))
+Y = np.zeros((L_dataSet * N, ))
 
-# grid Search Algorithm that find the best beta
-beta_save = np.zeros((L,))
-beta_list = np.linspace(0.3, 1.0, 25)
-best_global = np.zeros((L, ))
+for l in range(L_dataSet):
+    g = generate_gain_channel(L, N, alpha)
+    # Add Gain to transmiter channel
+    # if add_gain:
+    #     g_channel = add_gain_param * np.eye(N)
+    #     g = g + g_channel
+    g_square = g ** 2
+    P = 0.1 * np.random.rand(L, N, 1)  # Generate Power from uniform distributed
+    # Prepare g to calculation
+    g_diag = np.diagonal(g_square, axis1=1, axis2=2)
+    g_diag = g_diag.reshape(L, N, 1)
+    g_colum = np.transpose(g_square, axes=(0, 2, 1))
+    # calculate instance
+    In = np.matmul(g_colum, P) - g_diag * P
+    # Prepare Vectors to optimization Function
+    In = np.squeeze(In, axis=0)
+    P = np.squeeze(P, axis=0)
+    g_square = np.squeeze(g_square, axis=0)
+    g_diag = np.squeeze(g_diag, axis=0)
 
-# Build X_train
-P_init = 0.1 * np.random.rand(L, N, 1)  # Generate Power from uniform distributed
-g_square = g ** 2
-g_diag = np.diagonal(g_square, axis1=1, axis2=2)
-g_diag = g_diag.reshape(L, N, 1)
-g_colum = np.transpose(g_square, axes=(0, 2, 1))
-In_init = np.matmul(g_colum, P_init) - g_diag * P_init
-X_train = np.concatenate([P_init, In_init, g_diag], axis=1)
-X_train = X_train.squeeze()
+    # Define bounds for P, where each P_n should be between 0 and 1 (Optimization constraint)
+    bounds = [(0, 1)] * N  # Create a list of N tuples, each with bounds (0, 1)
+    # result = optim.minimize(objective_function, P, args=(g_diag, In, N0), bounds=[(0, 1)] * N)
+    result = optim.differential_evolution(objective_function, bounds, args=(g_diag, np.squeeze(g_colum, axis=0), N0),
+                                          maxiter=10000)
 
-# Save X_train
-np.save("Numpy_array_save/X_train.npy", X_train)
+    # Extract the optimal power allocation from the result
+    optimal_power_allocation = result.x
+    optimal_objective_value = -result.fun
 
-# Initialize state with beta = 0
-P_n, global_n = multi_wireless_loop(N, L, T, g, learning_rate, P_init, beta=0)
-best_global = global_n
-for beta in beta_list:
-    P_n, global_n = multi_wireless_loop(N, L, T, g, learning_rate, P_init, beta)
-    # Update beta
-    condition = global_n > best_global
-    beta_save[condition] = beta
-    best_global[condition] = global_n[condition]
+    # Calculate label
+    g_colum = g_colum.squeeze(axis=0)
+    g_diag = g_diag.squeeze(axis=1)
+    In = In.squeeze(axis=1)
+    # Fix Bug
+    In_opt = np.matmul(g_colum, optimal_power_allocation.reshape(N, 1)) - (g_diag * optimal_power_allocation).reshape(N, 1)
+    In_opt = In_opt.squeeze(axis=1)
+    Y[(l * N):(l * N + N)] = g_diag / (In_opt + N0 + g_diag * optimal_power_allocation)
+    ################################################# Some check ##############################################
+    # beta = g_diag / (In_opt + N0 + g_diag * optimal_power_allocation)
+    # beta = beta.reshape(N, 1)
+    # beta = 0
+    # lr = 0.0001 * np.ones((T, ))
+    # lr1 = 0.001 * np.ones((T,))
+    # P_record, global_objective, gradient_record = multi_wireless_loop(N, L, T, g, lr, beta, P)
+    # P_Naive, global_Naive, gradient_record = multi_wireless_loop(N, L, T, g, lr1, 0, P)
+    # t = np.arange(T)
+    # plt.figure(1)
+    # plt.subplot(1, 2, 1)
+    # for n in range(N):
+    #     Pn = P_record[:, n]
+    #     plt.plot(t, Pn, label=f"P{n}"), plt.xlabel("# Iteration"),
+    #     plt.ylabel("# candidate action"), plt.legend()
+    # plt.subplot(1, 2, 2)
+    # for n in range(N):
+    #     Pn = P_Naive[:, n]
+    #     plt.plot(t, Pn, label=f"P{n}"), plt.xlabel("# Iteration"),
+    #     plt.ylabel("# candidate action"), plt.legend()
+    # plt.figure(2)
+    # plt.subplot(1, 2, 1)
+    # plt.plot(t, global_objective), plt.xlabel("# Iteration"), plt.ylabel("Global Objective")
+    # plt.subplot(1, 2, 2)
+    # plt.plot(t, global_Naive), plt.xlabel("# Iteration"), plt.ylabel("Global Objective")
+    # plt.show()
+    #######################################################################################################@@@@
+    # Calculate X train
+    X[(l * N):(l * N + N), 0] = np.log(g_diag)
+    Pn1 = np.ones((N, 1))
+    In1 = np.matmul(g_colum, Pn1).squeeze(axis=1) - g_diag*Pn1.squeeze(axis=1)
+    phi_n1 = np.log(1 + g_diag * Pn1.squeeze(axis=1) / (In+N0))
+    X[(l * N):(l * N + N), 1] = np.log(In1)
+    X[(l * N):(l * N + N), 2] = phi_n1
+# Save data
+np.save("Numpy_array_save/X_train(bigData).npy", X)
+np.save("Numpy_array_save/Y_train(bigData).npy", Y)
 
-# Save Y_train
-np.save("Numpy_array_save/Y_train.npy", beta_save)
-
-print("Finsh !!!")
+print("Finsh !!!!")
