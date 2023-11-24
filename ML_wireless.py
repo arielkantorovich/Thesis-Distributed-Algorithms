@@ -18,6 +18,46 @@ import torch.nn.init as init
 
 
 # %% Setting Archticture network
+class Wireless_AutoEncoder(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(Wireless, self).__init__()
+        self.fc1 = nn.Linear(input_size, 32)
+        self.bn1 = nn.BatchNorm1d(32)
+        self.fc2 = nn.Linear(32, 64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.fc3 = nn.Linear(64, 128)
+        self.bn3 = nn.BatchNorm1d(128)
+        self.fc4 = nn.Linear(128, 64)
+        self.bn4 = nn.BatchNorm1d(64)
+        self.fc5 = nn.Linear(64, 32)
+        self.bn5 = nn.BatchNorm1d(32)
+        self.fc6 = nn.Linear(32, output_size)
+        self.init_weights()
+
+    def forward(self, x):
+        # Encoder Part
+        x1 = torch.relu(self.bn1(self.fc1(x)))
+        x2 = torch.relu(self.bn2(self.fc2(x1)))
+        x3 = torch.relu(self.bn3(self.fc3(x2)))
+        # Decoder Part
+        x4 = torch.relu(self.bn4(self.fc4(x3))) + x2
+        x5 = torch.relu(self.bn5(self.fc5(x4))) + x1
+
+        # Final layer without activation for regression
+        output = self.fc6(x5)
+        return output
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                # init.normal_(m.weight, mean=0, std=1.0)
+                init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                init.constant_(m.weight, 1)
+                init.constant_(m.bias, 0)
+
 class Wireless(nn.Module):
     def __init__(self, input_size, output_size):
         super(Wireless, self).__init__()

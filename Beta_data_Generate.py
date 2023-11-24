@@ -127,83 +127,58 @@ add_gain_param = 10.0
 L_dataSet = 30000
 
 # Prepare data and label
-X = np.zeros((L_dataSet * N, 3))
+X = np.zeros((L_dataSet * N, 4))
 Y = np.zeros((L_dataSet * N, ))
 
-for l in range(L_dataSet):
-    g = generate_gain_channel(L, N, alpha)
-    # Add Gain to transmiter channel
-    # if add_gain:
-    #     g_channel = add_gain_param * np.eye(N)
-    #     g = g + g_channel
-    g_square = g ** 2
-    P = 0.1 * np.random.rand(L, N, 1)  # Generate Power from uniform distributed
-    # Prepare g to calculation
-    g_diag = np.diagonal(g_square, axis1=1, axis2=2)
-    g_diag = g_diag.reshape(L, N, 1)
-    g_colum = np.transpose(g_square, axes=(0, 2, 1))
-    # calculate instance
-    In = np.matmul(g_colum, P) - g_diag * P
-    # Prepare Vectors to optimization Function
-    In = np.squeeze(In, axis=0)
-    P = np.squeeze(P, axis=0)
-    g_square = np.squeeze(g_square, axis=0)
-    g_diag = np.squeeze(g_diag, axis=0)
-
-    # Define bounds for P, where each P_n should be between 0 and 1 (Optimization constraint)
-    bounds = [(0, 1)] * N  # Create a list of N tuples, each with bounds (0, 1)
-    # result = optim.minimize(objective_function, P, args=(g_diag, In, N0), bounds=[(0, 1)] * N)
-    result = optim.differential_evolution(objective_function, bounds, args=(g_diag, np.squeeze(g_colum, axis=0), N0),
-                                          maxiter=10000)
-
-    # Extract the optimal power allocation from the result
-    optimal_power_allocation = result.x
-    optimal_objective_value = -result.fun
-
-    # Calculate label
-    g_colum = g_colum.squeeze(axis=0)
-    g_diag = g_diag.squeeze(axis=1)
-    In = In.squeeze(axis=1)
-    # Fix Bug
-    In_opt = np.matmul(g_colum, optimal_power_allocation.reshape(N, 1)) - (g_diag * optimal_power_allocation).reshape(N, 1)
-    In_opt = In_opt.squeeze(axis=1)
-    Y[(l * N):(l * N + N)] = g_diag / (In_opt + N0 + g_diag * optimal_power_allocation)
-    ################################################# Some check ##############################################
-    # beta = g_diag / (In_opt + N0 + g_diag * optimal_power_allocation)
-    # beta = beta.reshape(N, 1)
-    # beta = 0
-    # lr = 0.0001 * np.ones((T, ))
-    # lr1 = 0.001 * np.ones((T,))
-    # P_record, global_objective, gradient_record = multi_wireless_loop(N, L, T, g, lr, beta, P)
-    # P_Naive, global_Naive, gradient_record = multi_wireless_loop(N, L, T, g, lr1, 0, P)
-    # t = np.arange(T)
-    # plt.figure(1)
-    # plt.subplot(1, 2, 1)
-    # for n in range(N):
-    #     Pn = P_record[:, n]
-    #     plt.plot(t, Pn, label=f"P{n}"), plt.xlabel("# Iteration"),
-    #     plt.ylabel("# candidate action"), plt.legend()
-    # plt.subplot(1, 2, 2)
-    # for n in range(N):
-    #     Pn = P_Naive[:, n]
-    #     plt.plot(t, Pn, label=f"P{n}"), plt.xlabel("# Iteration"),
-    #     plt.ylabel("# candidate action"), plt.legend()
-    # plt.figure(2)
-    # plt.subplot(1, 2, 1)
-    # plt.plot(t, global_objective), plt.xlabel("# Iteration"), plt.ylabel("Global Objective")
-    # plt.subplot(1, 2, 2)
-    # plt.plot(t, global_Naive), plt.xlabel("# Iteration"), plt.ylabel("Global Objective")
-    # plt.show()
-    #######################################################################################################@@@@
-    # Calculate X train
-    X[(l * N):(l * N + N), 0] = np.log(g_diag)
-    Pn1 = np.ones((N, 1))
-    In1 = np.matmul(g_colum, Pn1).squeeze(axis=1) - g_diag*Pn1.squeeze(axis=1)
-    phi_n1 = np.log(1 + g_diag * Pn1.squeeze(axis=1) / (In+N0))
-    X[(l * N):(l * N + N), 1] = np.log(In1)
-    X[(l * N):(l * N + N), 2] = phi_n1
-# Save data
-np.save("Numpy_array_save/X_train(bigData).npy", X)
-np.save("Numpy_array_save/Y_train(bigData).npy", Y)
-
+# for l in range(L_dataSet):
+#     g = generate_gain_channel(L, N, alpha)
+#     # Add Gain to transmiter channel
+#     # if add_gain:
+#     #     g_channel = add_gain_param * np.eye(N)
+#     #     g = g + g_channel
+#     g_square = g ** 2
+#     P = 0.1 * np.random.rand(L, N, 1)  # Generate Power from uniform distributed
+#     # Prepare g to calculation
+#     g_diag = np.diagonal(g_square, axis1=1, axis2=2)
+#     g_diag = g_diag.reshape(L, N, 1)
+#     g_colum = np.transpose(g_square, axes=(0, 2, 1))
+#     # calculate instance
+#     In = np.matmul(g_colum, P) - g_diag * P
+#     # Prepare Vectors to optimization Function
+#     In = np.squeeze(In, axis=0)
+#     P = np.squeeze(P, axis=0)
+#     g_square = np.squeeze(g_square, axis=0)
+#     g_diag = np.squeeze(g_diag, axis=0)
+#
+#     # Define bounds for P, where each P_n should be between 0 and 1 (Optimization constraint)
+#     bounds = [(0, 1)] * N  # Create a list of N tuples, each with bounds (0, 1)
+#     # result = optim.minimize(objective_function, P, args=(g_diag, In, N0), bounds=[(0, 1)] * N)
+#     result = optim.differential_evolution(objective_function, bounds, args=(g_diag, np.squeeze(g_colum, axis=0), N0),
+#                                           maxiter=10000)
+#
+#     # Extract the optimal power allocation from the result
+#     optimal_power_allocation = result.x
+#     optimal_objective_value = -result.fun
+#
+#     # Calculate label
+#     g_colum = g_colum.squeeze(axis=0)
+#     g_diag = g_diag.squeeze(axis=1)
+#     In = In.squeeze(axis=1)
+#     # Fix Bug
+#     In_opt = np.matmul(g_colum, optimal_power_allocation.reshape(N, 1)) - (g_diag * optimal_power_allocation).reshape(N, 1)
+#     In_opt = In_opt.squeeze(axis=1)
+#     Y[(l * N):(l * N + N)] = g_diag / (In_opt + N0 + g_diag * optimal_power_allocation)
+#     # Calculate X train
+#     X[(l * N):(l * N + N), 0] = np.log(g_diag)
+#     Pn1 = np.ones((N, 1))
+#     In1 = np.matmul(g_colum, Pn1).squeeze(axis=1) - g_diag*Pn1.squeeze(axis=1)
+#     phi_n1 = np.log(1 + g_diag * Pn1.squeeze(axis=1) / (In+N0))
+#     X[(l * N):(l * N + N), 1] = np.log(In1)
+#     X[(l * N):(l * N + N), 2] = phi_n1
+# # Save data
+# np.save("Numpy_array_save/X_train(bigData).npy", X)
+# np.save("Numpy_array_save/Y_train(bigData).npy", Y)
+import os
+file_path_weights = os.path.join("Numpy_array_save", "N=5_wireless", "X_trainNew(BigData).npy")
+X_old = np.load(file_path_weights)
 print("Finsh !!!!")

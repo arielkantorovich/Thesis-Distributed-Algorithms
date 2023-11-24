@@ -1,3 +1,9 @@
+# -*- coding: utf-8 -*-
+"""
+Created on : ------
+
+@author: Ariel_Kantorovich
+"""
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -8,9 +14,56 @@ import torch.nn.init as init
 from numba import jit
 import scipy.optimize as optim
 from joblib import Parallel, delayed
-# np.random.seed(0)
 
+# Define seed for check
+np.random.seed(0)
 # %% Setting Archticture network
+class Wireless_AutoEncoder(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(Wireless_AutoEncoder, self).__init__()
+        self.fc1 = nn.Linear(input_size, 16)
+        self.bn1 = nn.BatchNorm1d(16)
+        self.fc2 = nn.Linear(16, 32)
+        self.bn2 = nn.BatchNorm1d(32)
+        self.fc3 = nn.Linear(32, 64)
+        self.bn3 = nn.BatchNorm1d(64)
+        self.fc4 = nn.Linear(64, 128)
+        self.bn4 = nn.BatchNorm1d(128)
+        # Define Decoder
+        self.fc5 = nn.Linear(128, 64)
+        self.bn5 = nn.BatchNorm1d(64)
+        self.fc6 = nn.Linear(64, 32)
+        self.bn6 = nn.BatchNorm1d(32)
+        self.fc7 = nn.Linear(32, 16)
+        self.bn7 = nn.BatchNorm1d(16)
+        self.fc8 = nn.Linear(16, output_size)
+        self.init_weights()
+
+    def forward(self, x):
+        # Encoder Part
+        x1 = torch.relu(self.bn1(self.fc1(x)))
+        x2 = torch.relu(self.bn2(self.fc2(x1)))
+        x3 = torch.relu(self.bn3(self.fc3(x2)))
+        x4 = torch.relu(self.bn4(self.fc4(x3)))
+        # Decoder Part
+        x5 = torch.relu(self.bn5(self.fc5(x4))) + x3
+        x6 = torch.relu(self.bn6(self.fc6(x5))) + x2
+        x7 = torch.relu(self.bn7(self.fc7(x6))) + x1
+        # Final layer without activation for regression
+        output = torch.relu(self.fc8(x7))
+        return output
+
+    def init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                # init.normal_(m.weight, mean=0, std=1.0)
+                init.kaiming_normal_(m.weight, mode='fan_in', nonlinearity='relu')
+                if m.bias is not None:
+                    init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm1d):
+                init.constant_(m.weight, 1)
+                init.constant_(m.bias, 0)
+
 class Wireless(nn.Module):
     def __init__(self, input_size, output_size):
         super(Wireless, self).__init__()
@@ -162,14 +215,18 @@ def optimize_trial(g_diag, g_colum, N0, bounds):
     optimal_objective_value = -result.fun
     return optimal_power_allocation, optimal_objective_value
 
-def Calculate_Beta_NN(L, N, g_colum, g_diag):
+def Calculate_Beta_NN(L, N, g_colum, g_diag, AutoEncoder=False):
     # Build Input
     X_test = np.zeros((L * N, 4))
     In = np.matmul(g_colum, np.ones((L, N, 1))) - g_diag * np.ones((L, N, 1))
     X_test[:, 0] = np.log(g_diag[:, :, 0]).flatten()
     X_test[:, 1] = np.log(In[:, :, 0]).flatten()
     X_test[:, 2] = np.log(1 + (g_diag[:, :, 0] / (In[:, :, 0] + N0))).flatten()
-    kernel = np.exp(- np.abs(In[:, :, 0] - g_diag[:, :, 0]) / 2).flatten()
+    if AutoEncoder:
+        kernel = np.exp(- np.abs(np.log(In[:, :, 0]) - np.log(g_diag[:, :, 0])) / 2).flatten()
+    else:
+        kernel = np.exp(- np.abs(In[:, :, 0] - g_diag[:, :, 0]) / 2).flatten()
+
     X_test[:, 3] = kernel
 
     # Take beta results
@@ -216,7 +273,7 @@ g_diag = g_diag.reshape(L, N, 1)
 g_colum = np.transpose(g_square, axes=(0, 2, 1))
 
 # Calculate beta from Neural Network
-beta_NN = Calculate_Beta_NN(L, N, g_colum, g_diag)
+beta_NN = Calculate_Beta_NN(L, N, g_colum, g_diag, AutoEncoder=False)
 
 # Define bounds for P, where each P_n should be between 0 and 1 (Optimization constraint)
 bounds = [(0, 1)] * N
