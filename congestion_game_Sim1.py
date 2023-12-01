@@ -77,11 +77,10 @@ def calc_gradient(C_k, Xn_k, B, C, Xe, Nash_flag=False):
     :param Nash_flag: bool, specify if calculate only gradient Nash
     :return: gradient of each player size (N, )
     """
-    self_gradient = C_k + Xn_k * (B + 2 * C * Xe)
+    self_gradient = C_k * (Xn_k > 0) + Xn_k * (B + 2 * C * Xe)
     if Nash_flag:
         return self_gradient
-    global_grad = C_k + (B + 2 * C * Xe) * np.sum(Xn_k, axis=0, keepdims=True)
-    global_grad = np.ones_like(Xn_k) * global_grad
+    global_grad = C_k * (Xn_k > 0) + (B + 2 * C * Xe) * np.sum(Xn_k, axis=0, keepdims=True) * (Xn_k > 0)
     return global_grad
 
 
@@ -106,10 +105,14 @@ def project_onto_simplex(V, z=1):
 # Hyper Parameters
 prob = 0.1
 nodes = 20
-N = 20 # Number of players
-T = 2000
-lr = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.75))
-K = 5 # Number of strategy
+N = 2 # Number of players
+T = 50000
+lr_global = 0.0003 * np.reciprocal(np.power(range(1, T + 1), 0.9))
+lr_nash = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.9))
+# lr = 0.00001 * np.ones((T, ))
+K = 2 # Number of strategy
+# Define Seed for debug
+np.random.seed(0)
 
 # Record Variables
 nash_Cn_t = np.zeros((T, N)) # record cost of players
@@ -173,8 +176,8 @@ for t in range(T):
     nash_grad_t[t] = grad_nash
 
     # Update action of players
-    nash_Xn_k = nash_Xn_k - lr[t] * grad_nash
-    global_Xn_k = global_Xn_k - lr[t] * grad_global
+    nash_Xn_k = nash_Xn_k - lr_nash[t] * grad_nash
+    global_Xn_k = global_Xn_k - lr_global[t] * grad_global
     global_action_record[t] = global_Xn_k
     nash_action_record[t] = nash_Xn_k
 
