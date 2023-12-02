@@ -101,18 +101,18 @@ def project_onto_simplex(V, z=1):
     theta = cssv[np.arange(len(V)), rho - 1] / rho
     return np.maximum(V - theta[:, np.newaxis], 0)
 
+# Define Seed for debug
+np.random.seed(0)
 
 # Hyper Parameters
 prob = 0.1
 nodes = 20
-N = 2 # Number of players
-T = 50000
-lr_global = 0.0003 * np.reciprocal(np.power(range(1, T + 1), 0.9))
-lr_nash = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.9))
-# lr = 0.00001 * np.ones((T, ))
-K = 2 # Number of strategy
-# Define Seed for debug
-np.random.seed(0)
+N = 600 # Number of players
+T = 5000
+lr_global = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.65))
+lr_nash = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.65))
+# lr = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.6))
+K = 20 # Number of strategy
 
 # Record Variables
 nash_Cn_t = np.zeros((T, N)) # record cost of players
@@ -166,8 +166,8 @@ for t in range(T):
     global_Cn_t[t] = C_n_global
 
     # Calculate Global & Nash record
-    global_record[t] = np.sum(C_n_nash)
-    nash_record[t] = np.sum(C_n_global)
+    global_record[t] = np.sum(C_n_global)
+    nash_record[t] = np.sum(C_n_nash)
 
     # calculate gradient
     grad_nash = calc_gradient(C_k_nash, nash_Xn_k, B, C, Xe_nash, Nash_flag=True)
