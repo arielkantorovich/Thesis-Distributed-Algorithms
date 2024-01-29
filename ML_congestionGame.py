@@ -174,7 +174,7 @@ plt.plot(epochs, valid_list, label='valid')
 plt.xlabel("# epochs"), plt.ylabel("Loss"), plt.legend()
 plt.show()
 # Save Network results
-PATH = './Congestion(k=4).pth'
+PATH = './Congestion.pth'
 torch.save(model.state_dict(), PATH)
 
 
