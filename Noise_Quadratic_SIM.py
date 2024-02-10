@@ -36,9 +36,7 @@ def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=False):
     B = beta * np.ones((L, N, 1))
     # Make Q to Q.T@Q because we want convex prolem with optimum solution
     Q = np.transpose(Q, (0, 2, 1)) @ Q
-    # Generate Q noise
-    Q_noise = Q + std_Q * np.random.randn(L, N, N) + mu_Q
-    return Q, B, Q_noise
+    return Q, B
 
 def calculate_scores(Q, B, x_optimal, L):
     """
@@ -69,45 +67,45 @@ def compute_gradient(Qn, Bn, x):
 
 
 # %% Parameters
-L = 2000 # samples of Q
+L = 100 # samples of Q
 N = 5 # Number of players
 alpha = 0.5
 beta = 1
-std = 2
+std_list = np.arange(0.1, 10.3, 0.3)
 mu = 0
-
+# Define final results arrays
+cost_optimal_list = np.zeros_like(std_list)
+cost_Q_noise_list = np.zeros_like(std_list)
+cost_X_noise_list = np.zeros_like(std_list)
 # Generate Q and Q_noise
-Q, B, Q_noise = generate_Q_B(N, L, alpha, beta, std_Q=std, mu_Q=mu, subMean=False)
-
+Q, B = generate_Q_B(N, L, alpha, beta, subMean=False)
 # Repeat for N players
 B = np.repeat(B[:, np.newaxis, :, :], N, axis=1)
 Q = np.repeat(Q[:, np.newaxis, :, :], N, axis=1)
-Q_noise = np.repeat(Q_noise[:, np.newaxis, :, :], N, axis=1)
+for i, std in enumerate(std_list):
+    # Generate Q noise
+    Q_noise = Q + std * np.random.randn(L, N, N, N) + mu
+    # Inverse Matrices
+    Q_inv = np.linalg.pinv(Q)
+    Q_inv_noise = np.linalg.pinv(Q_noise)
+    # Calculate X action of all three methods
+    x_opt = np.matmul(-Q_inv, B)
+    x_QNoise = np.matmul(-Q_inv_noise, B)
+    x_Noise = x_opt + std * np.random.randn(L, N, N, 1) + mu
+    # Calculate cost
+    cost_optimal = calculate_scores(Q, B, x_opt, L)
+    cost_Q_Noise = calculate_scores(Q, B, x_QNoise, L)
+    cost_X_noise = calculate_scores(Q, B, x_Noise, L)
+    # Sum on L games
+    cost_optimal_list[i] = np.sum(cost_optimal)
+    cost_Q_noise_list[i] = np.sum(cost_Q_Noise)
+    cost_X_noise_list[i] = np.sum(cost_X_noise)
 
-# Inverse Matrices
-Q_inv = np.linalg.pinv(Q)
-Q_inv_noise = np.linalg.pinv(Q_noise)
-
-# Calculate X action of all three methods
-x_opt = np.matmul(-Q_inv, B)
-x_QNoise = np.matmul(-Q_inv_noise, B)
-x_Noise = x_opt + std * np.random.randn(L, N, N, 1) + mu
-
-# Calculate cost
-cost_optimal = calculate_scores(Q, B, x_opt, L)
-cost_Q_Noise = calculate_scores(Q, B, x_QNoise, L)
-cost_X_noise = calculate_scores(Q, B, x_Noise, L)
-
-# Sum on L games
-cost_optimal = np.sum(cost_optimal)
-cost_Q_Noise = np.sum(cost_Q_Noise)
-cost_X_noise = np.sum(cost_X_noise)
 
 # Plot results
-t = np.ones(5)
-plt.plot(t, t * cost_optimal, '--k', label='Opt')
-plt.plot(t, t * cost_Q_Noise, label='Q Noise')
-plt.plot(t, t * cost_X_noise, label='X Noise')
-plt.legend(), plt.ylabel("# Cost"), plt.show()
+plt.plot(std_list, cost_optimal_list, '--k', label='Opt')
+plt.plot(std_list, cost_Q_noise_list, label='Q Noise')
+plt.plot(std_list, cost_X_noise_list, label='X Noise')
+plt.legend(), plt.ylabel("# Cost"), plt.xlabel("$\sigma$"), plt.show()
 
 print("Finsh !!! !")
