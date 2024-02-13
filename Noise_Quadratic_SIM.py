@@ -73,7 +73,8 @@ alpha = 4.0
 beta = 0.1
 std_list = np.arange(0.1, 10.3, 0.1)
 mu = 0
-add_diag = True
+add_diag = False
+Border_projection = 70
 # Define final results arrays
 cost_optimal_list = np.zeros_like(std_list)
 cost_Q_noise_list = np.zeros_like(std_list)
@@ -99,6 +100,10 @@ for i, std in enumerate(std_list):
     x_opt = np.matmul(-Q_inv, B)
     x_QNoise = np.matmul(-Q_inv_noise, B)
     x_Noise = x_opt + std * np.random.randn(L, N, N, 1) + mu
+    # Project solution to solution space
+    x_opt = np.minimum(np.maximum(x_opt, -Border_projection), Border_projection)
+    x_QNoise = np.minimum(np.maximum(x_QNoise, -Border_projection), Border_projection)
+    x_Noise = np.minimum(np.maximum(x_Noise, -Border_projection), Border_projection)
     # Calculate cost
     cost_optimal = calculate_scores(Q, B, x_opt, L)
     cost_Q_Noise = calculate_scores(Q, B, x_QNoise, L)
@@ -112,7 +117,7 @@ for i, std in enumerate(std_list):
 # Plot results
 plt.plot(std_list, cost_optimal_list, '--k', label='Opt')
 plt.plot(std_list, cost_Q_noise_list, label='Q Noise')
-# plt.plot(std_list, cost_X_noise_list, label='X Noise')
+plt.plot(std_list, cost_X_noise_list, label='X Noise')
 plt.legend(), plt.ylabel("# Cost"), plt.xlabel("$\sigma$"), plt.show()
 
 print("Finsh !!! !")
