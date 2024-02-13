@@ -69,25 +69,32 @@ def compute_gradient(Qn, Bn, x):
 # %% Parameters
 L = 100 # samples of Q
 N = 5 # Number of players
-alpha = 0.5
-beta = 1
-std_list = np.arange(0.1, 10.3, 0.3)
+alpha = 4.0
+beta = 0.1
+std_list = np.arange(0.1, 10.3, 0.1)
 mu = 0
+add_diag = True
 # Define final results arrays
 cost_optimal_list = np.zeros_like(std_list)
 cost_Q_noise_list = np.zeros_like(std_list)
 cost_X_noise_list = np.zeros_like(std_list)
 # Generate Q and Q_noise
 Q, B = generate_Q_B(N, L, alpha, beta, subMean=False)
+# Add diagonal from inverse Matrix
+if add_diag:
+    c_diag = 10.0
+    identity = c_diag * np.eye(N)
+    Q = Q + identity[np.newaxis, :, :]
 # Repeat for N players
 B = np.repeat(B[:, np.newaxis, :, :], N, axis=1)
 Q = np.repeat(Q[:, np.newaxis, :, :], N, axis=1)
+# Inverse Matrices
+Q_inv = np.linalg.inv(Q)
 for i, std in enumerate(std_list):
     # Generate Q noise
     Q_noise = Q + std * np.random.randn(L, N, N, N) + mu
     # Inverse Matrices
-    Q_inv = np.linalg.pinv(Q)
-    Q_inv_noise = np.linalg.pinv(Q_noise)
+    Q_inv_noise = np.linalg.inv(Q_noise)
     # Calculate X action of all three methods
     x_opt = np.matmul(-Q_inv, B)
     x_QNoise = np.matmul(-Q_inv_noise, B)
@@ -105,7 +112,7 @@ for i, std in enumerate(std_list):
 # Plot results
 plt.plot(std_list, cost_optimal_list, '--k', label='Opt')
 plt.plot(std_list, cost_Q_noise_list, label='Q Noise')
-plt.plot(std_list, cost_X_noise_list, label='X Noise')
+# plt.plot(std_list, cost_X_noise_list, label='X Noise')
 plt.legend(), plt.ylabel("# Cost"), plt.xlabel("$\sigma$"), plt.show()
 
 print("Finsh !!! !")
