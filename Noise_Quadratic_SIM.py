@@ -88,12 +88,13 @@ def compute_Nash_Vec(Qn, Bn):
 
 
 # %% Parameters
-L = 100 # samples of Q
+L = 600 # samples of Q
 N = 5 # Number of players
 alpha = 4.0
-beta = 1.0
+beta = 0.5
 std_list = np.arange(0.0, 15.3, 0.1)
-mu = 0
+mu = 0.0
+mu_B = 0.0
 std_B = 0.01
 add_diag = False
 Border_projection = 2
@@ -102,6 +103,11 @@ cost_optimal_list = np.zeros_like(std_list)
 cost_Q_noise_list = np.zeros_like(std_list)
 cost_X_noise_list = np.zeros_like(std_list)
 cost_X_fake_list = np.zeros_like(std_list)
+
+cost_X_optimal_norm_list = np.zeros_like(std_list)
+cost_Q_noise_norm_list = np.zeros_like(std_list)
+cost_X_noise_norm_list = np.zeros_like(std_list)
+cost_X_fake_norm_list = np.zeros_like(std_list)
 # Generate Q and Q_noise
 Q, B = generate_Q_B(N, L, alpha, beta, subMean=False)
 # Add diagonal from inverse Matrix
@@ -117,7 +123,7 @@ Q_inv = np.linalg.inv(Q)
 for i, std in enumerate(std_list):
     # Generate Q, B noise
     Q_noise = Q_repeat + std * np.random.randn(L, N, N, N) + mu
-    B_noise = B_repeat + std_B * np.random.randn(L, N, N, 1) + mu
+    B_noise = B_repeat + std_B * np.random.randn(L, N, N, 1) + mu_B
     # Generate Q_fake for debug
     temp = np.mean(Q_noise, axis=(2, 3))
     Q_fake = temp[:, :, np.newaxis, np.newaxis] * np.ones((N, N))
@@ -141,13 +147,33 @@ for i, std in enumerate(std_list):
     cost_Q_noise_list[i] = np.sum(cost_Q_Noise)
     cost_X_noise_list[i] = np.sum(cost_X_noise)
     cost_X_fake_list[i] = np.sum(cost_X_fake)
+    # calculate norm to each action
+    x_opt_norm = np.sum(np.linalg.norm(x_opt, axis=1)) * (1 / L)
+    x_QNoise_norm = np.sum(np.linalg.norm(x_QNoise, axis=1)) * (1 / L)
+    x_Noise_norm = np.sum(np.linalg.norm(x_Noise, axis=1)) * (1 / L)
+    x_fake_norm = np.sum(np.linalg.norm(x_fake, axis=1)) * (1 / L)
+    # Put in Norm list
+    cost_X_optimal_norm_list[i] = x_opt_norm
+    cost_X_fake_norm_list[i] = x_fake_norm
+    cost_Q_noise_norm_list[i] = x_QNoise_norm
+    cost_X_noise_norm_list[i] = x_Noise_norm
 
 
 # Plot results
+plt.figure(1)
 plt.plot(std_list, cost_optimal_list, '--k', label='Opt')
 plt.plot(std_list, cost_Q_noise_list, label='Q Noise')
 plt.plot(std_list, cost_X_noise_list, label='X Noise')
 plt.plot(std_list, cost_X_fake_list, label='Q fake(Mean)')
-plt.legend(), plt.ylabel("# Cost"), plt.xlabel("$\sigma$"), plt.show()
+plt.legend(), plt.ylabel("# Cost"), plt.xlabel("$\sigma$"), \
+
+plt.figure(2)
+plt.plot(std_list, cost_X_optimal_norm_list, '--k', label='||Opt||')
+plt.plot(std_list, cost_Q_noise_norm_list, label='||Q Noise||')
+plt.plot(std_list, cost_X_noise_norm_list, label='||X Noise||')
+plt.plot(std_list, cost_X_fake_norm_list, label='||Q fake(Mean)||')
+plt.legend(), plt.ylabel("# Cost"), plt.xlabel("$\sigma$"), \
+
+plt.show()
 
 print("Finsh !!! !")
