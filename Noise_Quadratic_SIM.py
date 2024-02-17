@@ -6,6 +6,7 @@ Created on : ------
 """
 import matplotlib.pyplot as plt
 import numpy as np
+from numba import jit
 
 def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=False):
     """
@@ -33,11 +34,12 @@ def generate_Q_B(N, L, alpha, beta, std_Q=0, mu_Q=0, subMean=False):
         trial_means_expanded = trial_means[:, np.newaxis, np.newaxis]
         Q = Q - trial_means_expanded
     # Generate B of size Nx1xL
-    B = beta * np.ones((L, N, 1))
+    B = np.random.uniform(low=-beta, high=beta, size=(L, N, 1))
     # Make Q to Q.T@Q because we want convex prolem with optimum solution
     Q = np.transpose(Q, (0, 2, 1)) @ Q
     return Q, B
 
+@jit(nopython=True)
 def calculate_scores(Q, B, x_optimal, L):
     """
     :param Q: size (L,NxN)
@@ -62,6 +64,7 @@ def compute_gradient(Qn, Bn, x):
     """
     return np.matmul(Qn, x) + Bn
 
+@jit(nopython=True)
 def compute_Nash_Vec(Qn, Bn):
     """
     :param Qn: size (L, N, NxN)
@@ -71,14 +74,14 @@ def compute_Nash_Vec(Qn, Bn):
     L, N, _, _ = Qn.shape
     x_nash = np.zeros((L, N, 1))
     for l in range(L):
-        Q_new = np.zeros((N, N))
-        Q_diag = np.zeros((N, N))
+        Q_row = np.zeros((N, N))
+        Q_col = np.zeros((N, N))
         B_new = np.zeros((N, 1))
         for n in range(N):
-            Q_new[n, :] = Qn[l, n, n, :]
-            Q_diag[n, n] = Qn[l, n, n, n]
+            Q_row[n, :] = Qn[l, n, n, :]
+            Q_col[n, :] = Qn[l, n, :, n]
             B_new[n] = Bn[l, n, n]
-        Q_psudo_inv = np.linalg.pinv(Q_new + Q_diag)
+        Q_psudo_inv = np.linalg.pinv(Q_row + Q_col)
         x_nash[l] = -2 * Q_psudo_inv @ B_new
     return x_nash
 
@@ -89,8 +92,9 @@ L = 100 # samples of Q
 N = 5 # Number of players
 alpha = 4.0
 beta = 1.0
-std_list = np.arange(0.1, 10.3, 0.1)
+std_list = np.arange(0.0, 15.3, 0.1)
 mu = 0
+std_B = 0.01
 add_diag = False
 Border_projection = 2
 # Define final results arrays
@@ -111,16 +115,17 @@ Q_repeat = np.repeat(Q[:, np.newaxis, :, :], N, axis=1)
 # Inverse Matrices
 Q_inv = np.linalg.inv(Q)
 for i, std in enumerate(std_list):
-    # Generate Q noise
+    # Generate Q, B noise
     Q_noise = Q_repeat + std * np.random.randn(L, N, N, N) + mu
+    B_noise = B_repeat + std_B * np.random.randn(L, N, N, 1) + mu
     # Generate Q_fake for debug
     temp = np.mean(Q_noise, axis=(2, 3))
     Q_fake = temp[:, :, np.newaxis, np.newaxis] * np.ones((N, N))
     # Calculate X action of all three methods
     x_opt = np.matmul(-Q_inv, B)
     x_Noise = x_opt + std * np.random.randn(L, N, 1) + mu
-    x_QNoise = compute_Nash_Vec(Q_noise, B_repeat)  # calculate nash
-    x_fake = compute_Nash_Vec(Q_fake, B_repeat)
+    x_QNoise = compute_Nash_Vec(Q_noise, B_noise)  # calculate nash
+    x_fake = compute_Nash_Vec(Q_fake, B_noise)
     # Project solution to solution space
     x_opt = np.minimum(np.maximum(x_opt, -Border_projection), Border_projection)
     x_QNoise = np.minimum(np.maximum(x_QNoise, -Border_projection), Border_projection)
