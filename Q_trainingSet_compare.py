@@ -141,6 +141,7 @@ L_train = [10, 1000, 10000, 100000, 500000]
 N = 5 # Number of players
 alpha = 4.0
 beta = 0.5
+Border_projection = 2
 Error_test_nash = []
 Error_test_xopt = []
 global_error_nash = []
@@ -149,7 +150,10 @@ X_test, Y_test_Nash, Y_test_x, Q, B = generate_DataSet(N, L_test, alpha, beta, T
 
 # Calculate optimal cost
 BT = np.transpose(B, axes=(0, 2, 1))
-C_opt = np.sum(-0.5 * BT @ np.linalg.pinv(Q) @ B)
+x_opt = - np.matmul(np.linalg.pinv(Q), B)
+# Project solution
+x_opt = np.minimum(np.maximum(x_opt, -Border_projection), Border_projection)
+C_opt = calculate_scores(Q, B, x_opt, L_test)
 
 for L in L_train:
     # Generate Data Set
@@ -170,9 +174,12 @@ for L in L_train:
     x_opt_y = Y_x.reshape(L_test, N, 1)
     Q_nash = Y_nash.reshape(L_test, N, N)
     x_nash = - np.matmul(np.linalg.pinv(Q_nash), B)
+    # Project vectors to their constraint
+    x_opt_y = np.minimum(np.maximum(x_opt_y, -Border_projection), Border_projection)
+    x_nash = np.minimum(np.maximum(x_nash, -Border_projection), Border_projection)
     # Calculate error
-    nash_error = calculate_scores(Q, B, x_nash, L)
-    xopt_error = calculate_scores(Q, B, x_opt_y, L)
+    nash_error = calculate_scores(Q, B, x_nash, L_test)
+    xopt_error = calculate_scores(Q, B, x_opt_y, L_test)
     # Finally save error results
     global_error_nash.append(nash_error)
     global_error_xopt.append(xopt_error)
@@ -180,16 +187,17 @@ for L in L_train:
 
 # Plot results
 plt.figure(1)
-plt.plot(L_train, Error_nash, '-*', label='Error Nash'),
-plt.plot(L_train, Error_xopt, '-*', label='Error Xopt'),
-plt.title("Test Error LMMSE"), plt.xlabel("# Training Set"), plt.ylabel("# Error L2")
+plt.plot(L_train, Error_test_nash, '-*', label='Error Nash'),
+plt.plot(L_train, Error_test_xopt, '-*', label='Error Xopt'),
+plt.legend(), plt.title("Test Error LMMSE"), plt.xlabel("# Training Set"), plt.ylabel("# Error L2")
 plt.figure(2)
 plt.plot(L_train, global_error_nash, '-*', label='C(Nash)'),
 plt.plot(L_train, global_error_xopt, '-*', label='C(X)'),
-plt.plot(L_train, C_opt * np.ones(len(C_opt)), '--k', label='C(opt)'),
-plt.title("Error from Optimal"), plt.xlabel("# Training Set"), plt.ylabel("# Error MSE"),
+plt.plot(L_train, C_opt * np.ones(len(L_train)), '--k', label='C(opt)'),
+plt.legend(), plt.title("Error from Optimal"), plt.xlabel("# Training Set"), plt.ylabel("# Error MSE"),
 plt.show()
 
+print("Finsh !!!!!")
 
 
 
