@@ -99,7 +99,8 @@ def generate_DataSet(N, L, alpha, beta, Test_Flag=False):
     second_smallest_distances = sorted_rows[:, :, 1:(M+1)]
     small_dist = second_smallest_distances.reshape(N * L, M)
     # Finally build X train
-    X_train = np.concatenate((points_temp, mean_dist, small_dist), axis=1)
+    # X_train = np.concatenate((points_temp, mean_dist, small_dist), axis=1)
+    X_train = np.concatenate((mean_dist, small_dist), axis=1)
     X_train = X_train.reshape(L * N, X_train.shape[1], 1)
     # Build Y_train
     Y_train_Nash = Q.reshape(L*N, N, 1)
@@ -141,7 +142,7 @@ L_train = [10, 1000, 10000, 100000, 500000]
 N = 5 # Number of players
 alpha = 4.0
 beta = 0.5
-Border_projection = 2
+Border_projection = 1
 Error_test_nash = []
 Error_test_xopt = []
 global_error_nash = []

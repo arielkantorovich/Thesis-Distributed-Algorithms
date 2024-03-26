@@ -92,12 +92,13 @@ L = 600 # samples of Q
 N = 5 # Number of players
 alpha = 4.0
 beta = 0.5
-std_list = np.arange(0.0, 15.3, 0.1)
+std_list = np.arange(0.0, 5, 0.05)
 mu = 0.0
 mu_B = 0.0
 std_B = 0.01
 add_diag = False
 Border_projection = 2
+const_Q = 0.0
 # Define final results arrays
 cost_optimal_list = np.zeros_like(std_list)
 cost_Q_noise_list = np.zeros_like(std_list)
@@ -110,6 +111,9 @@ cost_X_noise_norm_list = np.zeros_like(std_list)
 cost_X_fake_norm_list = np.zeros_like(std_list)
 # Generate Q and Q_noise
 Q, B = generate_Q_B(N, L, alpha, beta, subMean=False)
+############################################ Add Constant ####################################################
+Q = Q + const_Q
+#############################################################################################################
 # Add diagonal from inverse Matrix
 if add_diag:
     c_diag = 10.0
@@ -122,14 +126,14 @@ Q_repeat = np.repeat(Q[:, np.newaxis, :, :], N, axis=1)
 Q_inv = np.linalg.inv(Q)
 for i, std in enumerate(std_list):
     # Generate Q, B noise
-    Q_noise = Q_repeat + std * np.random.randn(L, N, N, N) + mu
+    Q_noise = Q_repeat + (std * np.random.randn(L, N, N, N) + mu) / (N ** 2)  # Normalize the Noise
     B_noise = B_repeat + std_B * np.random.randn(L, N, N, 1) + mu_B
     # Generate Q_fake for debug
     temp = np.mean(Q_noise, axis=(2, 3))
     Q_fake = temp[:, :, np.newaxis, np.newaxis] * np.ones((N, N))
     # Calculate X action of all three methods
     x_opt = np.matmul(-Q_inv, B)
-    x_Noise = x_opt + std * np.random.randn(L, N, 1) + mu
+    x_Noise = x_opt + (std * np.random.randn(L, N, 1) + mu) / N
     x_QNoise = compute_Nash_Vec(Q_noise, B_noise)  # calculate nash
     x_fake = compute_Nash_Vec(Q_fake, B_noise)
     # Project solution to solution space
