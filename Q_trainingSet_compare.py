@@ -8,30 +8,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numba import jit
 
-def generate_Q_B(N, L, alpha, beta):
-    """
-    :param SubMean: boolean variable if subtract mean from Q or not
-    :param std_Q: variance for Q scalar
-    :param mu_Q: mu for Q scalar
-    :param N: Number of players
-    :param L: Trials to experiment
-    :param alpha: scalar
-    :param beta:  scalar
-    :return: Q, B, Q_noise  where Q is prob distance map size (L, N, N) and B is one vector size (L, N, 1) and Q_noise is Q with addative Gaussian Noise
-    """
-    # Step 1: Generate L different sets of N random points
-    points = np.random.rand(L, N, 2)
-    # Step 2: Build distance maps D for all trials
-    points_expanded = points[:, np.newaxis, :, :]
-    differences = points_expanded - points[:, :, np.newaxis, :]
-    distances = np.linalg.norm(differences, axis=-1)
-    # Step 3: Generate Q = exp(-alpha*D) for all trials
-    Q = np.exp(-alpha * distances)
-    # Generate B of size Nx1xL
-    B = np.random.uniform(low=-beta, high=beta, size=(L, N, 1))
-    return Q, B
-
-
 @jit(nopython=True)
 def calculate_scores(Q, B, x_L, L):
     """
@@ -46,28 +22,6 @@ def calculate_scores(Q, B, x_L, L):
         x = x_L[i]
         scores += np.sum(0.5 * np.transpose(x) @ Q[i] @ x + np.transpose(x) @ B[i])
     return scores
-
-
-@jit(nopython=True)
-def compute_Nash_Vec(Qn, Bn):
-    """
-    :param Qn: size (L, N, NxN)
-    :param Bn: size (L, N, Nx1)
-    :return: x_nash size (L, N, 1)
-    """
-    L, N, _, _ = Qn.shape
-    x_nash = np.zeros((L, N, 1))
-    for l in range(L):
-        Q_row = np.zeros((N, N))
-        Q_col = np.zeros((N, N))
-        B_new = np.zeros((N, 1))
-        for n in range(N):
-            Q_row[n, :] = Qn[l, n, n, :]
-            Q_col[n, :] = Qn[l, n, :, n]
-            B_new[n] = Bn[l, n, n]
-        Q_psudo_inv = np.linalg.pinv(Q_row + Q_col)
-        x_nash[l] = -2 * Q_psudo_inv @ B_new
-    return x_nash
 
 
 def generate_DataSet(N, L, alpha, beta, Test_Flag=False):
@@ -94,13 +48,12 @@ def generate_DataSet(N, L, alpha, beta, Test_Flag=False):
     mean_dist = np.mean(distances, axis=2)
     mean_dist = mean_dist.reshape(L*N, 1)
     # Generate M neighbors that close
-    M = 3
+    M = 2
     sorted_rows = np.sort(distances, axis=-1)
     second_smallest_distances = sorted_rows[:, :, 1:(M+1)]
     small_dist = second_smallest_distances.reshape(N * L, M)
     # Finally build X train
-    # X_train = np.concatenate((points_temp, mean_dist, small_dist), axis=1)
-    X_train = np.concatenate((mean_dist, small_dist), axis=1)
+    X_train = np.concatenate((points_temp, mean_dist, small_dist), axis=1)
     X_train = X_train.reshape(L * N, X_train.shape[1], 1)
     # Build Y_train
     Y_train_Nash = Q.reshape(L*N, N, 1)
@@ -138,11 +91,11 @@ def generate_linear_estimator(X_train, Y_train_nash, Y_train_x):
 ########################## Main Code: ###############################
 # %% Parameters
 L_test = 600
-L_train = [10, 1000, 10000, 100000, 500000]
+L_train = [10, 1000, 10000, 100000, 500000, 1000000]
 N = 5 # Number of players
 alpha = 4.0
 beta = 0.5
-Border_projection = 1
+Border_projection = 2
 Error_test_nash = []
 Error_test_xopt = []
 global_error_nash = []
