@@ -1,8 +1,55 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize
 
 # Define some seed
 np.random.seed(0)
+
+
+class enerrgy_optimization__package:
+    def __init__(self, L, N, K, gamma_n, gamma_nk):
+        self.L = L
+        self.N = N
+        self.K = K
+        self.gamma_n = gamma_n
+        self.gamma_nk = gamma_nk
+
+    def constraint_gamma_n(self, x):
+        x = x.reshape(self.N, self.K)
+        constraint_value = self.gamma_n - np.sum(x, axis=1)
+        return constraint_value
+
+    # Define the total reward function (sum of all players' rewards)
+    def total_reward(self, x, a_k, b_k):
+        x = x.reshape(self.N, self.K)  # Reshape x to be (N, K)
+        S_k = np.sum(x, axis=0)  # Sum of actions across players for each resource
+        total_reward = 0
+        for n in range(self.N):
+            log_term = np.sum(np.log(1 + x[n]))
+            quadratic_term = np.sum(a_k[n] * x[n] * S_k ** 2)
+            linear_term = np.sum(b_k[n] * x[n] * S_k)
+            total_reward += log_term - (quadratic_term + linear_term)
+        return -total_reward  # We negate because we want to maximize
+
+    def main_package_loop(self, x_init, a_k, b_k):
+        # Solve the optimization problem for L games
+        results = []
+        for game in range(self.L):
+            # Initial guess
+            x0 = x_init[game]
+            # Bounds: x_nk must be between 0 and 1
+            bounds = [(0, self.gamma_nk) for _ in range(self.K * self.N)]
+            # Constraints: sum of each player's actions must be less than or equal to gamma_n
+            constraints = [{'type': 'ineq', 'fun': lambda x: self.constraint_gamma_n(x)}]
+            # Minimize the negative total reward function
+            result = minimize(self.total_reward, x0.flatten(), args=(a_k[game], b_k[game]), bounds=bounds,
+                              constraints=constraints)
+            # Store the result of this game
+            results.append(-result.fun)  # Store the maximized reward (negated)
+        # Calculate the mean reward over all games
+        mean_reward = np.mean(results)
+        return mean_reward
+
 
 def project_onto_simplex(V, z=1):
     """
@@ -101,6 +148,7 @@ T = 100
 gamma_n_k = 0.1
 gamma_n = 1.4
 learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.9))
+learning_rate_global = 0.06 * np.reciprocal(np.power(range(1, T + 1), 0.9))
 
 # Initialize Xnk
 Xn_k = np.random.uniform(low=0.0, high=1.0, size=(L, N, K))
@@ -109,6 +157,7 @@ Xn_k = project_onto_simplex(Xn_k, z=gamma_n)
 # define X nash and x global
 X_NE = Xn_k.copy()
 X_global = Xn_k.copy()
+x_global_package = Xn_k.copy()
 
 # Game initialize Parameters
 alpha = 1.5
@@ -118,19 +167,24 @@ B_k = beta * np.random.uniform(low=0.0, high=5.0, size=(L, N, K))
 
 # Save results
 save_grad_debug = True
-reward_list = np.zeros((T, N))
-grad_list = np.zeros((T, N))
+reward_list_NE = np.zeros((T, N))
+grad_list_NE = np.zeros((T, N))
+reward_list_global = np.zeros((T, N))
+grad_list_global = np.zeros((T, N))
 
 # Read to main loop
 X_NE, reward_list_NE, grad_list_NE = main_loop(N, T, gamma_n_k,
                                                gamma_n, save_grad_debug, learning_rate,
                                                X_NE, A_k, B_k,
-                                               reward_list, grad_list, is_global=False)
+                                               reward_list_NE, grad_list_NE, is_global=False)
 
 X_global, reward_list_global, grad_list_global = main_loop(N, T, gamma_n_k,
-                                                           gamma_n, save_grad_debug, learning_rate,
+                                                           gamma_n, save_grad_debug, learning_rate_global,
                                                            X_global, A_k, B_k,
-                                                           reward_list, grad_list, is_global=True)
+                                                           reward_list_global, grad_list_global, is_global=True)
+# Get Solution from optimization package
+optim_class = enerrgy_optimization__package(L, N, K, gamma_n, gamma_n_k)
+reward_mean_package = optim_class.main_package_loop(x_global_package, A_k, B_k)
 
 # Plot Section
 t = np.arange(T)
@@ -152,6 +206,7 @@ for n in range(N):
 total_NE_reward = np.sum(reward_list_NE, axis=1)
 total_global_reward = np.sum(reward_list_global, axis=1)
 plt.figure(5)
+plt.plot(t, reward_mean_package * np.ones(T), '--k', label="$\sum_{n} r_{n} Optim Package$"), plt.xlabel("# Iteration"), plt.legend()
 plt.plot(t, total_NE_reward, label="$\sum_{n} r_{n} NE$"), plt.xlabel("# Iteration"), plt.legend()
 plt.plot(t, total_global_reward, label="$\sum_{n} r_{n} global$"), plt.xlabel("# Iteration"), plt.legend()
 plt.show()
