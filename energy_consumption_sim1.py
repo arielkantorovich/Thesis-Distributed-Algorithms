@@ -5,7 +5,6 @@ from scipy.optimize import minimize
 # Define some seed
 np.random.seed(0)
 
-
 class enerrgy_optimization__package:
     def __init__(self, L, N, K, gamma_n, gamma_nk):
         self.L = L
@@ -33,7 +32,8 @@ class enerrgy_optimization__package:
 
     def main_package_loop(self, x_init, a_k, b_k):
         # Solve the optimization problem for L games
-        results = []
+        results = np.zeros((self.L, ))
+        optimized_actions = np.zeros((self.L, self.N, self.K))
         for game in range(self.L):
             # Initial guess
             x0 = x_init[game]
@@ -45,11 +45,12 @@ class enerrgy_optimization__package:
             result = minimize(self.total_reward, x0.flatten(), args=(a_k[game], b_k[game]), bounds=bounds,
                               constraints=constraints)
             # Store the result of this game
-            results.append(-result.fun)  # Store the maximized reward (negated)
+            results[game] = -result.fun  # Store the maximized reward (negated)
+            # Reshape the optimized x_nk back to (N, K) and store it
+            optimized_actions[game] = result.x.reshape(self.N, self.K)
         # Calculate the mean reward over all games
         mean_reward = np.mean(results)
-        return mean_reward
-
+        return mean_reward, optimized_actions
 
 def project_onto_simplex(V, z=1):
     """
@@ -137,22 +138,25 @@ def main_loop(N, T, gamma_n_k, gamma_n, save_grad_debug, learning_rate,
         Xn_k = np.clip(Xn_k, a_min=0, a_max=gamma_n_k)
         Xn_k = project_onto_simplex(Xn_k, z=gamma_n)
 
+
     return Xn_k, reward_list, grad_list
 
 
 # Initialize constant parameters
-L = 1000
+L = 10
 K = 24
 N = 5
 T = 100
 gamma_n_k = 0.1
 gamma_n = 1.4
-learning_rate = 0.03 * np.reciprocal(np.power(range(1, T + 1), 0.9))
+learning_rate = 0.06 * np.reciprocal(np.power(range(1, T + 1), 0.9))
 learning_rate_global = 0.06 * np.reciprocal(np.power(range(1, T + 1), 0.9))
 
 # Initialize Xnk
 Xn_k = np.random.uniform(low=0.0, high=1.0, size=(L, N, K))
+Xn_k = np.clip(Xn_k, a_min=0, a_max=gamma_n_k)
 Xn_k = project_onto_simplex(Xn_k, z=gamma_n)
+
 
 # define X nash and x global
 X_NE = Xn_k.copy()
@@ -184,7 +188,7 @@ X_global, reward_list_global, grad_list_global = main_loop(N, T, gamma_n_k,
                                                            reward_list_global, grad_list_global, is_global=True)
 # Get Solution from optimization package
 optim_class = enerrgy_optimization__package(L, N, K, gamma_n, gamma_n_k)
-reward_mean_package = optim_class.main_package_loop(x_global_package, A_k, B_k)
+reward_mean_package, x_global_package = optim_class.main_package_loop(x_global_package, A_k, B_k)
 
 # Plot Section
 t = np.arange(T)
